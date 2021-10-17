@@ -1,6 +1,6 @@
 """
 source:
-https//github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/
+https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/
 blob/master/utilities/data_structures/Replay_Buffer.py
 """
 
