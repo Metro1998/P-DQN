@@ -5,10 +5,9 @@ from utilities.data_structure.node import Node
 class Deque(object):
     """ Generic deque object """
 
-    def __init__(self, max_size, dimension_of_value_attribute):
+    def __init__(self, max_size):
 
         self.max_size = max_size
-        self.dimension_of_value_attributes = dimension_of_value_attribute
         self.deque = self.initialize_deque()
         self.deque_index_to_overwrite_next = 0
         self.reached_max_capacity = False
@@ -16,8 +15,7 @@ class Deque(object):
 
     def initialize_deque(self):
         """ Initialize a queue of Nodes of length self.max_size. """
-        deque = np.array([Node(0, tuple([None for _ in range(self.dimension_of_value_attributes)]))
-                          for _ in range(self.max_size)])
+        deque = np.array([Node(0, tuple([None] * 5)) for _ in range(self.max_size)])
         return deque
 
     def add_element_to_deque(self, new_key, new_value):

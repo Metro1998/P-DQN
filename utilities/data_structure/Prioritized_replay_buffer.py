@@ -15,11 +15,11 @@ class Prioritized_Replay_Buffer(Max_Heap, Deque):
      """
 
     def __init__(self, hyperparameters, seed=0):
-        Max_Heap.__init__(self, hyperparameters["buffer_size"], dimension_of_value_attribute=5, default_key_to_use=0)
-        Deque.__init__(self, hyperparameters["buffer_size"], dimension_of_value_attribute=5)
+        Max_Heap.__init__(self, hyperparameters["buffer_size"])
+        Deque.__init__(self, hyperparameters["buffer_size"])
         np.random.seed(seed)
 
-        self.deque_td_errors = self.initialize_td_errors_array()
+        self.deque_td_errors = np.zeros(self.max_size)  # Initialize a deque of Nodes of length self.max_size.
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
         # self.number_experiences_in_deque = 0
@@ -30,14 +30,8 @@ class Prioritized_Replay_Buffer(Max_Heap, Deque):
         self.incremental_td_error = hyperparameters["incremental_td_error"]
         self.batch_size = hyperparameters["batch_size"]
 
-        # self.heap_indexes_to_update_td_error_for = None
-
-
+        self.heap_indexes_to_update_td_error_for = None
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    def initialize_td_errors_array(self):
-        """ Initialize a deque of Nodes of length self.max_size. """
-        return np.zeros(self.max_size)
 
     def add_experience(self, raw_td_error, state, action, reward, next_state, done):
         """ Save an experience in the replay buffer. """
@@ -120,9 +114,13 @@ class Prioritized_Replay_Buffer(Max_Heap, Deque):
     def update_td_errors(self, td_errors):
         """ Updates the td_errors for the provided heap indexes. The indexes should be the observations provided most
         recently by the give_sample method. """
-        for raw_td_error, deque_index in zip(td_errors, )
-
-
+        for raw_td_error, deque_index in zip(td_errors, self.deque_sample_indexes_to_update_td_error_for):
+            td_error = (abs(raw_td_error) + self.incremental_td_error) ** self.alpha
+            corresponding_heap_index = self.deque[deque_index].heap_index
+            self.update_overall_sum(td_error, self.heap[corresponding_heap_index].key)
+            self.heap[corresponding_heap_index].key = td_error
+            self.reorganize_heap(corresponding_heap_index)
+            self.deque_td_errors[deque_index] = td_error
 
 
 
