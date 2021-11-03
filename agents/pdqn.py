@@ -9,12 +9,15 @@ import numpy as np
 import random
 
 from agents.agent import Agent
+from utilities.ou_noise import OrnsteinUhlenbeckActionNoise
+from utilities.memory.memory import Memory
+from utilities.utilities import *
 
 
 class QActor(nn.Module):
 
     def __init__(self, state_size, action_size, action_parameter_size, hidden_layer=(100,), action_input_layer=0,
-                 activation='relu', output_layer_init_std=None):
+                 activation='relu', output_layer_init_std=None, **kwargs):
         """
 
         :param state_size: # TODO
@@ -130,8 +133,8 @@ class ParamActor(nn.Module):
                 F.leaky_relu(self.layers[i](x), negative_slope)
             else:
                 raise ValueError("Unknown activation function " + str(self.activation))
-        action_parameter = self.action_parameters_output_layer(x)
-        action_parameter += self.action_parameters_passthrough_layer(state)
+        action_params = self.action_parameters_output_layer(x)
+        action_params += self.action_parameters_passthrough_layer(state)
 
         if self.squashing_function:  # TODO
             assert False  # scaling not implemented yet
@@ -177,14 +180,145 @@ class PDQNAgent(Agent):
                  weighted=False,
                  average=False,
                  random_weighted=False,
-                 device='cuda'if torch.cuda.is_available() else 'cpu',
+                 device='cuda' if torch.cuda.is_available() else 'cpu',
                  seed=None):
         super(PDQNAgent, self).__init__(observation_space, action_space)
+        self.actor_param_kwargs = actor_param_kwargs
         self.device = torch.device(device)
         self.num_actions = self.action_space.spaces[0].n  # TODO
         self.action_parameter_sizes = np.array([self.action_space.spaces[i].shape[0]
                                                 for i in range(1, self.num_actions + 1)])
         self.action_parameter_size = int(self.action_parameter_sizes.sum())
+        self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(device)
+        self.action_min = - self.action_max.detach()  # remove gradient
+        self.action_range = (self.action_max - self.action_min).detach()
+        print([self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)])  # TODO
+        self.action_parameter_max_numpy = np.concatenate([self.action_space.spaces[i].high
+                                                          for i in range(1, self.num_actions + 1)]).ravel()
+        self.action_parameter_min_numpy = np.concatenate([self.action_space.spaces[i].low
+                                                          for i in range(1, self.num_actions + 1)]).ravel()
+        self.action_parameter_range_numpy = (self.action_parameter_max_numpy - self.action_parameter_min_numpy)
+        self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(device)
+        self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(device)
+        self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(device)
+
+        self.epsilon = epsilon_initial
+        self.epsilon_initial = epsilon_initial
+        self.epsilon_final = epsilon_final
+        self.epsilon_steps = epsilon_steps
+        self.indexed = indexed
+        self.weighted = weighted
+        self.average = average
+        self.random_weighted = random_weighted
+        assert (weighted ^ average ^ random_weighted) or not (weighted or average or random_weighted)
+
+        self.action_parameter_offsets = self.action_parameter_sizes.cumsum()  # different from sum()
+        self.action_parameter_offsets = np.insert(self.action_parameter_offsets, 0, 0)  # TODO
+
+        self.replay_memory_size = replay_memory_size
+        self.batch_size = batch_size
+        self.gamma = gamma
+        self.initial_memory_threshold = initial_memory_threshold
+        self.learning_rate_actor = learning_rate_actor
+        self.learning_rate_actor_param = learning_rate_actor_param
+        self.inverting_gradients = inverting_gradients
+        self.tau_actor = tau_actor
+        self.tau_actor_param = tau_actor_param
+        self._step = 0
+        self._episode = 0
+        self.updates = 0
+        self.clip_grad = clip_grad
+        self.zero_index_gradients = zero_index_gradients
+
+        self.seed = seed
+        self._seed()
+
+        self.use_ornstein_noise = use_ornstein_noise
+        self.noise = OrnsteinUhlenbeckActionNoise(self.action_parameter_size,
+                                                  random_machine=self.np_random, mu=0., theta=0.15, sigma=0.0001)
+
+        print(self.num_actions + self.action_parameter_size)
+        self.replay_memory = Memory(replay_memory_size, observation_space.shape,
+                                    (1 + self.action_parameter_size,), next_actions=False)  # TODO
+        self.actor = actor_class(self.observation_space.shape[0], self.num_actions, self.action_parameter_size
+                                 , **actor_kwargs).to(device)
+        self.actor_target = actor_class(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
+                                        **actor_kwargs).to(device)
+        hard_update(source=self.actor, target=self.actor_target)
+        self.actor_target.eval()
+
+        self.actor_param = actor_param_class(self.observation_space.shape[0], self.num_actions,
+                                             self.action_parameter_size, **actor_param_kwargs).to(device)
+        self.actor_param_target = actor_param_class(self.observation_space.shape[0], self.num_actions,
+                                                    self.action_parameter_size, **actor_param_kwargs).to(device)
+        hard_update(source=self.actor_param, target=self.actor_param_target)
+        self.actor_param_target.eval()
+
+        self.loss_func = loss_func  # l1_smooth_loss performs better but original paper used MSE
+
+        # Original DDPG paper [Lillicrap et al. 2016] used a weight decay of 0.01 for Q (critic)
+        # but setting weight_decay=0.01 on the critic_optimiser seems to perform worse...
+        # using AMSgrad ("fixed" version of Adam, amsgrad=True) doesn't seem to help either...
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate_actor)  # TODO 这边有细节
+        self.actor_param_optimizer = optim.Adam(self.actor_param.parameters(), lr=self.learning_rate_actor_param)
+
+    def _seed(self):
+        """
+
+        :return:
+        """
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        self.np_random = np.random.RandomState(self.seed)
+
+        torch.manual_seed(self.seed)
+        if self.device == torch.device('cuda'):
+            torch.cuda.manual_seed(self.seed)
+
+    def __str__(self):
+        desc = super().__str__() + '\n'
+        desc += "Actor Network {}\n".format(self.actor) + \
+                "Param Network {}\n".format(self.actor_param) + \
+                "Actor Alpha: {}\n".format(self.learning_rate_actor) + \
+                "Actor Param Alpha: {}\n".format(self.learning_rate_actor_param) + \
+                "Gamma: {}\n".format(self.gamma) + \
+                "Tau (actor): {}\n".format(self.tau_actor) + \
+                "Tau (actor-params): {}\n".format(self.tau_actor_param) + \
+                "Inverting Gradients: {}\n".format(self.inverting_gradients) + \
+                "Replay Memory: {}\n".format(self.replay_memory_size) + \
+                "Batch Size: {}\n".format(self.batch_size) + \
+                "Initial memory: {}\n".format(self.initial_memory_threshold) + \
+                "epsilon_initial: {}\n".format(self.epsilon_initial) + \
+                "epsilon_final: {}\n".format(self.epsilon_final) + \
+                "epsilon_steps: {}\n".format(self.epsilon_steps) + \
+                "Clip Grad: {}\n".format(self.clip_grad) + \
+                "Ornstein Noise?: {}\n".format(self.use_ornstein_noise) + \
+                "Zero Index Grads?: {}\n".format(self.zero_index_gradients) + \
+                "Seed: {}\n".format(self.seed)
+        return desc
+
+    def set_action_parameter_passthrough_weights(self, initial_weights, initial_bias=None):
+        """
+
+        :param initial_weights:
+        :param initial_bias:
+        :return:
+        """
+        passthrough_layer = self.actor_param.action_parameters_passthrough_layer
+        # directly from state to actor_param
+        # [self.state_size, self.action_parameter_size]
+        print(initial_weights.shape)
+        print(passthrough_layer.weight.data.size())
+        assert initial_weights.shape == passthrough_layer.weight.data.size()
+        passthrough_layer.weight.data = torch.Tensor(initial_weights).float().to(self.device)
+        if initial_bias is not None:
+            print(initial_bias.shape)
+            print(passthrough_layer.bias.data.size())
+            passthrough_layer.bias.data = torch.Tensor(initial_bias).float().to(self.device)
+        passthrough_layer.requires_grad = False
+        passthrough_layer.weight.requires_grad = False
+        passthrough_layer.bias.requires_grad = False
+        hard_update(source=self.actor_param, target=self.actor_param_target)
 
 
 

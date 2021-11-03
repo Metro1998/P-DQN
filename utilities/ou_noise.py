@@ -2,29 +2,28 @@
 # @time 2021/10/14
 
 import numpy as np
-import random
-import copy
 
 
-class OU_Noise(object):
-    """ Ornstein-Uhlenbeck process. """
+class OrnsteinUhlenbeckActionNoise(object):
+    """
+    Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
+    Source: https://github.com/vy007vikas/PyTorch-ActorCriticRL/blob/master/utils.py
+    """
 
-    def __init__(self, size, seed, mu=0., theta=0.15, sigma=0.2):
-        self.mu = mu * np.ones(size)
+    def __init__(self, action_dim, mu=0, theta=0.15, sigma=0.2, random_machine=np.random):
+        super(OrnsteinUhlenbeckActionNoise, self).__init__()
+        self.random = random_machine
+        self.action_dim = action_dim
+        self.mu = mu
         self.theta = theta
         self.sigma = sigma
-        self.seed = random.seed(seed)
-        self.reset()
+        self.X = np.ones(self.action_dim) * self.mu
 
     def reset(self):
-        """ Reset the internal state (noise) to mean(mu). """
-        self.state = copy.copy(self.mu)
+        self.X = np.ones(self.action_dim) * self.mu
 
     def sample(self):
-        """ Update internal state and return it as a noise sample. """
-        # dxt = theta * (mu - xt)dt + sigma * dWt
-        dx = self.theta * (self.mu - self.state) + self.sigma * np.array([np.random.normal()
-                                                                          for _ in range(len(self.state))])
-        self.state += dx
-        return self.state
-
+        dx = self.theta * (self.mu - self.X)
+        dx = dx + self.sigma * self.random.randn(len(self.X))
+        self.X = self.X + dx
+        return self.X
