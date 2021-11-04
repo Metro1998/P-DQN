@@ -60,15 +60,8 @@ class Memory(object):
         self.terminals = RingBuffer(limit, shape=(1,))
 
     def sample(self, batch_size, random_machine=np.random):
-        # Draw such that we always have a proceeding element.
-        # batch_idxs = random_machine.random_integers(self.nb_entries - 2, size=batch_size)
         batch_idxs = random_machine.random_integers(low=0, high=self.nb_entries - 1, size=batch_size)
 
-        '''states_batch = array_min2d(self.states.get_batch(batch_idxs))
-        actions_batch = array_min2d(self.actions.get_batch(batch_idxs))
-        rewards_batch = array_min2d(self.rewards.get_batch(batch_idxs))
-        next_states_batch = array_min2d(self.next_states.get_batch(batch_idxs))
-        terminals_batch = array_min2d(self.terminals.get_batch(batch_idxs))'''
         states_batch = self.states.get_batch(batch_idxs)
         actions_batch = self.actions.get_batch(batch_idxs)
         rewards_batch = self.rewards.get_batch(batch_idxs)

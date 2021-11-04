@@ -12,9 +12,10 @@ import torch.optim as optim
 import numpy as np
 import random
 
+from torch.autograd import Variable
+from copy import deepcopy
 from agents.agent import Agent
 from agents.model import QActor, ParamActor
-# from utilities.ou_noise import OrnsteinUhlenbeckActionNoise
 from utilities.memory.memory import Memory
 from utilities.utilities import *
 
@@ -42,7 +43,7 @@ class PDQNAgent(Agent):
                  replay_memory_size=1e6,
                  learning_rate_actor=1e-4,
                  learning_rate_actor_param=1e-5,
-                 use_ornstein_noise=False,
+                 clip_grad=10,
                  loss_func=F.smooth_l1_loss,
                  device='cuda' if torch.cuda.is_available() else 'cpu',
                  seed=None):
@@ -89,6 +90,7 @@ class PDQNAgent(Agent):
         self.learning_rate_actor_param = learning_rate_actor_param
         self.tau_actor = tau_actor
         self.tau_actor_param = tau_actor_param
+        self.clip_grad = clip_grad
 
         self.seed = seed
         random.seed(self.seed)
@@ -125,7 +127,10 @@ class PDQNAgent(Agent):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate_actor)  # TODO 这边有细节
         self.actor_param_optimizer = optim.Adam(self.actor_param.parameters(), lr=self.learning_rate_actor_param)
         self.replay_memory = Memory(replay_memory_size, observation_space.shape,
-                                    (1 + self.action_parameter_size,), next_actions=False)  # TODO
+                                    (1 + self.action_parameter_size,), next_actions=False)
+        # Memory这里虽然保留了next_actions的接口，但是DQN是不需要的（用next_states去计算），之所以要＋1是因为actions结构的特殊性
+        # actions = actions_combined[:, 0].long()  # int64
+        # action_parameters = actions_combined[:, 1:]
 
     def __str__(self):
         desc = super().__str__() + '\n'
@@ -141,6 +146,7 @@ class PDQNAgent(Agent):
                 "epsilon_initial: {}\n".format(self.epsilon_initial) + \
                 "epsilon_final: {}\n".format(self.epsilon_final) + \
                 "epsilon_decay: {}\n".format(self.epsilon_decay) + \
+                "loss_func: {}\n".format(self.loss_func) + \
                 "Seed: {}\n".format(self.seed)
         return desc
 
@@ -207,6 +213,35 @@ class PDQNAgent(Agent):
 
         return action, action_parameters, all_action_parameters
 
+    def _invert_gradients(self, grad, vals, grad_type, inplace=True):
+        if grad_type == 'actions':
+            max_p = self.action_max
+            min_p = self.action_min
+            rnge = self.action_range
+        elif grad_type == 'action_parameters':
+            max_p = self.action_parameter_max
+            min_p = self.action_parameter_min
+            rnge = self.action_parameter_range
+        else:
+            raise ValueError('Unhandled grad_type: {}'.format(str(grad_type)))
+
+        max_p = max_p.cpu()
+        min_p = min_p.cpu()
+        rnge = rnge.cpu()
+        grad = grad.cpu()
+        vals = vals.cpu()
+
+        assert grad.shape == vals.shape
+
+        if not inplace:
+            grad = grad.clone()
+        with torch.no_grad():
+            index = grad > 0
+            grad[index] *= (index.float() * (max_p - min_p) / rnge)[index]
+            grad[~index] *= ((~index).float() * (vals - min_p) / rnge)[~index]
+
+        return grad
+
     def update(self):
         """
         Mainly based on https://github.com/X-I-N/my_PDQN/blob/main/agent.py
@@ -219,17 +254,20 @@ class PDQNAgent(Agent):
 
         states = torch.from_numpy(states).to(self.device)
         actions_combined = torch.from_numpy(actions).to(self.device)  # make sure to separate actions and parameters
-        actions = actions_combined[:, 0].long()  # TODO
+        actions = actions_combined[:, 0].long()  # int64
         action_parameters = actions_combined[:, 1:]
-        rewards = torch.from_numpy(rewards).to(self.device).squeeze()  # TODO
+        rewards = torch.from_numpy(rewards).to(self.device).squeeze()
+        # 这边多嘴一句，squeeze()是一个降维的作用，因为在定义reward与dones的时候shape为(1,)因此在传到device的时候需要降维
         next_states = torch.from_numpy(next_states).to(self.device)
-        dones = torch.from_numpy(dones).to(self.device)
+        dones = torch.from_numpy(dones).to(self.device).squeeze()
 
         # ----------------------------- optimize Q-network ------------------------------------
         with torch.no_grad():
             pred_next_action_parameters = self.actor_param_target.forward(next_states)
             pred_Q_a = self.actor_target(next_states, pred_next_action_parameters)
-            Qprime = torch.max(pred_Q_a, 1, keepdim=True)[0].squeeze()  # TODO
+            Qprime = torch.max(pred_Q_a, 1, keepdim=True)[0].squeeze()
+            # 首先torch.max会返回一个nametuple(val, inx)因此[0],又因为keepdim=True,所以最终的size会和input一样，除了
+            # 那个max的维度大小变为1，因此需要做一个sqeeze()的操作
 
             # compute the TD error
             target = rewards + (1 - dones) * self.gamma * Qprime
@@ -237,14 +275,56 @@ class PDQNAgent(Agent):
         # compute current Q-values using policy network
         q_values = self.actor(states, action_parameters)
         y_predicted = q_values.gather(1, actions.view(-1, 1)).squeeze()
+        # 这边很重要
+        # 假设q_values = tensor([[1.1, 1.3],
+        #                        [5.1, 9.2]])
+        # action.view(-1, 1) = tensor([[0],
+        #                              [1]])
+        # 那最终的y_predicted = tensor([[1.1],
+        #                              [9.2]])
+        # 暂时要求记住dim与index是一致的
+
         y_expected = target
         loss_Q = self.loss_func(y_predicted, y_expected)
 
         self.actor_optimizer.zero_grad()
         loss_Q.backward()
-        for param in self.actor.parameters():
-            param.grad.clamp_(-1, 1)
+        if self.clip_grad > 0:
+            torch.nn.utils.clip_grad_norm(self.actor.parameters(), self.clip_grad)
         self.actor_optimizer.step()
 
+        # ------------------------------ optimize ParamActor --------------------------------
+        with torch.no_grad():
+            action_params = self.actor_param(states)
+        action_params.requires_grad = True
+        Q_val = self.actor(states, action_params)
+        param_loss = torch.mean(torch.sum(Q_val, 1))
+        # 首先是sum部分，这和论文中是一致的，即对于所有K个动作进行加和，mean操作则是对batch_size个数据的处理，loss最后是一个float
+        self.actor.zero_grad()
+        param_loss.backward()
 
+        # TODO
+        delta_a = deepcopy(action_params.grad.data)
+        action_params = self.actor_param(Variable(states))
+        delta_a[:] = self._invert_gradients(delta_a, action_params, grad_type="action_parameters", inplace=True)
+        out = -torch.mul(delta_a, action_params)  # Multiplies input by other
+        self.actor_param.zero_grad()
+        out.backward(torch.ones(out.shape)).to(self.device)
 
+        if self.clip_grad > 0:
+            torch.nn.utils.clip_grad_norm(self.actor_param.parameters(), self.clip_grad)
+        self.actor_param_optimizer.step()
+
+        soft_update(source=self.actor, target=self.actor_target, tau=self.tau_actor)
+        soft_update(source=self.actor_param, target=self.actor_param_target, tau=self.tau_actor_param)
+
+    def save_models(self, actor_path, actor_param_path):
+        torch.save(self.actor.state_dict(), actor_path)
+        torch.save(self.actor_param.state_dict(), actor_param_path)
+        print('Models saved successfully')
+
+    def load_models(self, actor_path, actor_param_path):
+        # also try load on CPU if no GPU available?
+        self.actor.load_state_dict(torch.load(actor_path, actor_param_path))
+        self.actor_param.load_state_dict(torch.load(actor_path, actor_param_path))
+        print('Models loaded successfully')
