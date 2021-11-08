@@ -40,6 +40,7 @@ class PDQNAgent(Agent):
                  gamma=0.99,
                  tau_actor=0.01,  # soft update
                  tau_actor_param=0.01,
+                 initial_memory_threshold=0,
                  replay_memory_size=1e6,
                  learning_rate_actor=1e-4,
                  learning_rate_actor_param=1e-5,
@@ -84,12 +85,15 @@ class PDQNAgent(Agent):
         self.epsilon_decay = epsilon_decay
 
         self.replay_memory_size = replay_memory_size
+        self.initial_memory_threshold = initial_memory_threshold
         self.batch_size = batch_size
         self.gamma = gamma
         self.learning_rate_actor = learning_rate_actor
         self.learning_rate_actor_param = learning_rate_actor_param
         self.tau_actor = tau_actor
         self.tau_actor_param = tau_actor_param
+        self._steps = 0
+        self._updates = 0
         self.clip_grad = clip_grad
 
         self.seed = seed
@@ -242,7 +246,21 @@ class PDQNAgent(Agent):
 
         return grad
 
-    def update(self):
+    def add_sample(self, state, action, reward, next_state, next_action, terminal):
+        assert len(action) == 1 + self.action_parameter_size
+        self.replay_memory.append(state, action, reward, next_state, terminal)
+
+    def step(self, state, action, reward, next_state, next_action, terminal, time_steps=1):
+        act, all_action_parameters = action
+        self._steps += 1
+
+        self.add_sample(state, np.concatenate([act], all_action_parameters).ravel(), reward, next_state,
+                        np.concatenate([next_action[0], next_action[1]]).ravel(), terminal)
+        if self._steps >= self.batch_size and self._steps >= self.initial_memory_threshold:
+            self.optimize_td_loss()
+            self._updates += 1
+
+    def optimize_td_loss(self):
         """
         Mainly based on https://github.com/X-I-N/my_PDQN/blob/main/agent.py
 
@@ -250,7 +268,7 @@ class PDQNAgent(Agent):
         """
         if len(self.replay_memory) < self.batch_size:
             return
-        states, actions, rewards, next_states, dones = self.replay_memory.sample(self.batch_size)
+        states, actions, rewards, next_states, terminals = self.replay_memory.sample(self.batch_size)
 
         states = torch.from_numpy(states).to(self.device)
         actions_combined = torch.from_numpy(actions).to(self.device)  # make sure to separate actions and parameters
@@ -259,7 +277,7 @@ class PDQNAgent(Agent):
         rewards = torch.from_numpy(rewards).to(self.device).squeeze()
         # 这边多嘴一句，squeeze()是一个降维的作用，因为在定义reward与dones的时候shape为(1,)因此在传到device的时候需要降维
         next_states = torch.from_numpy(next_states).to(self.device)
-        dones = torch.from_numpy(dones).to(self.device).squeeze()
+        terminals = torch.from_numpy(terminals).to(self.device).squeeze()
 
         # ----------------------------- optimize Q-network ------------------------------------
         with torch.no_grad():
@@ -270,7 +288,7 @@ class PDQNAgent(Agent):
             # 那个max的维度大小变为1，因此需要做一个sqeeze()的操作
 
             # compute the TD error
-            target = rewards + (1 - dones) * self.gamma * Qprime
+            target = rewards + (1 - terminals) * self.gamma * Qprime
 
         # compute current Q-values using policy network
         q_values = self.actor(states, action_parameters)
