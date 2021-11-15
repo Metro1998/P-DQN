@@ -1,6 +1,12 @@
-from utilities.data_structure.node import Node
-import numpy as np
+import torch
+import torch.nn as nn
 
-deque = np.array([Node(0, tuple([None for _ in range(2)]))
-                  for _ in range(10)])
-print(deque)
+m = nn.Embedding(200, 5)
+
+input_ = torch.tensor([[1, 4, 9], [2, 6, 3]])
+
+out_put_ = m(input_)
+
+print(out_put_)
+
+

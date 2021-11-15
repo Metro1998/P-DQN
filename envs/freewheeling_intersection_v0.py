@@ -2,9 +2,13 @@
 # @time 2021/11/11
 # happy to be single!
 # 暂时不考虑加入参数
+# 先实现自己的状态空间，之后的（更多丰富的接口需要去完善一下）
 
 import gym
+import numpy as np
+import cityflow
 from gym import spaces
+
 
 class Freewheeling_Intersection_V0(gym.Env):
     """
@@ -53,3 +57,19 @@ class Freewheeling_Intersection_V0(gym.Env):
     """
 
     def __init__(self):
+
+        action_low = np.array([5.] * 8)
+        action_high = np.array([20.] * 8)
+        self.action_space = spaces.Tuple((
+            spaces.Discrete(8),
+            spaces.Tuple(
+                tuple(spaces.Box(action_low[i], action_high[i], dtype=np.float32) for i in range(8))
+            )
+        ))
+        self.observation_space = spaces.Tuple((
+
+
+
+        ))
+
+
