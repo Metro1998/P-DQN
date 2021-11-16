@@ -6,7 +6,11 @@
 
 import gym
 import numpy as np
-import cityflow
+import os
+import sys
+import traci
+import traci.constants as tc
+from traci import domain
 from gym import spaces
 
 
@@ -71,5 +75,27 @@ class Freewheeling_Intersection_V0(gym.Env):
 
 
         ))
+
+        # declare the path to sumo/tools
+        # sys.path.append('/path/to/sumo/tools')
+        sys.path.append('D:/SUMO/tools')
+
+    def reset(self):
+        """
+        Connect with the sumo instance, could be multiprocess.
+
+        :return:
+        """
+        # sumoBinary = "/path/to/sumo"
+        sumoBinary = 'D:/SUMO/bin/sumo'
+        sumoCmd = [sumoBinary, '-c', 'FW_Inter.sumocfg']
+
+        # create instances
+        traci.start(sumoCmd, label='sim1')
+        traci.domain.
+
+
+
+
 
 

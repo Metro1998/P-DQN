@@ -1,12 +1,13 @@
-import torch
-import torch.nn as nn
+import os
+import sys
+import traci
+import traci.constants as tc
 
-m = nn.Embedding(200, 5)
+sys.path.append('D:/SUMO/tools')
+# sumoBinary = "/path/to/sumo"
+sumoBinary = 'D:/SUMO/bin/sumo'
+sumoCmd = [sumoBinary, '-c', 'FW_Inter.sumocfg']
 
-input_ = torch.tensor([[1, 4, 9], [2, 6, 3]])
-
-out_put_ = m(input_)
-
-print(out_put_)
-
-
+# create instances
+traci.start(sumoCmd, label='sim1')
+traci.
