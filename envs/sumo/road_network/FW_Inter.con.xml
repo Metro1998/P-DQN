@@ -39,10 +39,4 @@
   <connection from="west_in" to="south_out" fromLane="0" toLane="1" tl="SmartWolfie" linkIndex="34" contPos="0"/>
   <connection from="west_in" to="south_out" fromLane="0" toLane="2" tl="SmartWolfie" linkIndex="35" contPos="0"/>
 
-  <connection from="north_in" to="north_out" fromLane="2" toLane="0" tl="SmartWolfie" linkIndex="36" contPos="0"/>
-  <connection from="east_in" to="east_out" fromLane="2" toLane="0" tl="SmartWolfie" linkIndex="37" contPos="0"/>
-  <connection from="south_in" to="south_out" fromLane="2" toLane="0" tl="SmartWolfie" linkIndex="38" contPos="0"/>
-  <connection from="west_in" to="west_out" fromLane="2" toLane="0" tl="SmartWolfie" linkIndex="39" contPos="0"/>
-
-
 </connections>

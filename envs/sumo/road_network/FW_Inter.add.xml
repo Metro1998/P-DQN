@@ -1,0 +1,31 @@
+<additional>
+  <tlLogic id="SmartWolfie" type="static" programID="SmartWolfie_V0" offset="0">
+        # north_south_through
+        <phase  state="GGGGGGrrrGGGrrrrrrGGGGGGrrrGGGrrrrrr"/>
+        <phase  state="GGGyyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
+        # east_west_through
+        <phase  state="GGGrrrrrrGGGGGGrrrGGGrrrrrrGGGGGGrrr"/>
+        <phase  state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrr"/>
+        # north_south_left
+        <phase  state="GGGrrrGGGGGGrrrrrrGGGrrrGGGGGGrrrrrr"/>
+        <phase  state="GGGrrryyyGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
+        # east_west_left
+        <phase  state="GGGrrrrrrGGGrrrGGGGGGrrrrrrGGGrrrGGG"/>
+        <phase  state="GGGrrrrrrGGGrrryyyGGGrrrrrrGGGrrryyy"/>
+        # north_through_left
+        <phase  state="GGGGGGGGGGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        <phase  state="GGGyyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        # east_through_left
+        <phase  state="GGGrrrrrrGGGGGGGGGGGGrrrrrrGGGrrrrrr"/>
+        <phase  state="GGGrrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrr"/>
+        # south_through_left
+        <phase  state="GGGrrrrrrGGGrrrrrrGGGGGGGGGGGGrrrrrr"/>
+        <phase  state="GGGrrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrr"/>
+        # west_through_left
+        <phase  state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGGGGGGG"/>
+        <phase  state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGyyyyyy"/>
+        # all red
+        <phase  state="rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"/>
+
+  </tlLogic>
+</additional>
