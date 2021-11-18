@@ -94,17 +94,22 @@ class Freewheeling_Intersection_V0(gym.Env):
                               'SE_right', 'SN_through', 'SW_left',
                               'WS_right', 'WE_through', 'WN_left']
 
+        self.LENGTH_LANE = 234.12
+
     def reset(self):
         """
         Connect with the sumo instance, could be multiprocess.
 
         :return: dic, speed and position of different vehicle types
         """
-        path = './sumo/road_network/FW_Inter.sumocfg'
+        path = '../envs/sumo/road_network/FW_Inter.sumocfg'
 
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
-        vehicles_speed, vehicles_position = self.get_state()
+        info = self.retrieve()
+        info = sum(info.values(), [])
+        vehicles_speed = [v[1] for v in info]
+        vehicles_position = [v[2] for v in info]
 
         return vehicles_speed, vehicles_position
 
@@ -153,33 +158,39 @@ class Freewheeling_Intersection_V0(gym.Env):
                         vehicles_speed_n_steps[k]
         action_old = copy.deepcopy(action)
 
-    def get_state(self):
+    def retrieve(self):
         """
 
         :return:
         """
-        # dic to save vehicles' speed and position info w.r.t its vehicle type
-        # e.g. vehicles_speed = {'NW_right':'vehicle_id_0', 'vehicle_id_6',
+        # dic to save vehicles' speed and position etc. w.r.t its vehicle type
+        # e.g. vehicles_speed = {'NW_right':['vehicle_id_0', position, speed, accumulated_waiting_time, time_loss],...
         #                        'NS_through':...}
-        vehicles_speed = {}
-        vehicles_position = {}
-
-        # a cursor to indicate which vehicle type is being selected
-        type_cursor = 0
+        vehicles_raw_info = {}
 
         for edgeID in self.edgeIDs:
-            traci.edge.subscribeContext(edgeID, tc.CMD_GET_VEHICLETYPE_VARIABLE,
-                                        tc.LAST_STEP_VEHICLE_ID_LIST)
-            vehicles_on_specific_edge = traci.edge.getContextSubscriptionResults(edgeID)
-            for i in range(3):  # on one specific edge, there are three different vehicle types.
-                for vehicleID in vehicles_on_specific_edge:
-                    traci.vehicle.subscribeContext(vehicleID, tc.CMD_GET_VEHICLETYPE_VARIABLE,
-                                                   [tc.VAR_SPEED, tc.VAR_POSITION])
-                    traci.vehicle.addSubscriptionFilterVType(self.vehicle_types[type_cursor])
-                    vehicles_speed[self.vehicle_types[type_cursor]] = \
-                        traci.vehicle.getContextSubscriptionResults(vehicleID)
-                    vehicles_position[self.vehicle_types[type_cursor]] = \
-                        traci.vehicle.getContextSubscriptionResults(vehicleID)
-                type_cursor += 1
+            vehicles_on_specific_edge = []
+            traci.edge.subscribe(edgeID, (tc.LAST_STEP_VEHICLE_ID_LIST,))
+            # vehicleID is a tuple at this step
+            for vehicleID in traci.edge.getSubscriptionResults(edgeID).values():
+                for i in range(len(vehicleID)):
+                    vehicles_on_specific_edge.append(str(vehicleID[i]))
 
-        return vehicles_speed, vehicles_position
+                for ID in vehicles_on_specific_edge:
+                    tem = []
+                    traci.vehicle.subscribe(ID, (tc.VAR_TYPE, tc.VAR_LANEPOSITION, tc.VAR_SPEED,
+                                                 tc.VAR_ACCUMULATED_WAITING_TIME, tc.VAR_TIMELOSS))
+                    for v in traci.vehicle.getSubscriptionResults(ID).values():
+                        tem.append(v)
+                    tem[1] = self.LENGTH_LANE - tem[1]
+                    # LENGTH_LANE is the length of  lane, gotten from FW_Inter.net.xml.
+                    # ID:str, vehicle's ID
+                    # tem[1]:float, the distance between vehicle and lane's stop line.
+                    # tem[2]:float, speed
+                    # tem[3]:float, accumulated_waiting_time
+                    # tem[4]:float, time loss
+                    if tem[0] not in vehicles_raw_info:
+                        vehicles_raw_info[tem[0]] = []
+                    vehicles_raw_info[tem[0]].append([ID, tem[1], tem[2], tem[3], tem[4]])
+
+        return vehicles_raw_info
