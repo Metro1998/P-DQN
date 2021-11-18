@@ -1,31 +1,31 @@
 <additional>
   <tlLogic id="SmartWolfie" type="static" programID="SmartWolfie_V0" offset="0">
         # north_south_through
-        <phase  state="GGGGGGrrrGGGrrrrrrGGGGGGrrrGGGrrrrrr"/>
-        <phase  state="GGGyyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGGGGrrrGGGrrrrrrGGGGGGrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGyyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
         # east_west_through
-        <phase  state="GGGrrrrrrGGGGGGrrrGGGrrrrrrGGGGGGrrr"/>
-        <phase  state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGGGGrrrGGGrrrrrrGGGGGGrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrr"/>
         # north_south_left
-        <phase  state="GGGrrrGGGGGGrrrrrrGGGrrrGGGGGGrrrrrr"/>
-        <phase  state="GGGrrryyyGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrGGGGGGrrrrrrGGGrrrGGGGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrryyyGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
         # east_west_left
-        <phase  state="GGGrrrrrrGGGrrrGGGGGGrrrrrrGGGrrrGGG"/>
-        <phase  state="GGGrrrrrrGGGrrryyyGGGrrrrrrGGGrrryyy"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrGGGGGGrrrrrrGGGrrrGGG"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrryyyGGGrrrrrrGGGrrryyy"/>
         # north_through_left
-        <phase  state="GGGGGGGGGGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
-        <phase  state="GGGyyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGGGGGGGGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGyyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
         # east_through_left
-        <phase  state="GGGrrrrrrGGGGGGGGGGGGrrrrrrGGGrrrrrr"/>
-        <phase  state="GGGrrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGGGGGGGGGGrrrrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrr"/>
         # south_through_left
-        <phase  state="GGGrrrrrrGGGrrrrrrGGGGGGGGGGGGrrrrrr"/>
-        <phase  state="GGGrrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGGGGGGGGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrr"/>
         # west_through_left
-        <phase  state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGGGGGGG"/>
-        <phase  state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGyyyyyy"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGGGGGGG"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGyyyyyy"/>
         # all red
-        <phase  state="rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"/>
+        <phase  duration="1000" state="rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"/>
 
   </tlLogic>
 </additional>

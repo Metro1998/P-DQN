@@ -90,9 +90,9 @@ class Freewheeling_Intersection_V0(gym.Env):
 
         # vehicle_types will help to filter the vehicles on the same edge but have different direction.
         self.vehicle_types = ['NW_right', 'NS_through', 'NE_left',
-                         'EN_right', 'EW_through', 'ES_left',
-                         'SE_right', 'SN_through', 'SW_left',
-                         'WS_right', 'WE_through', 'WN_left']
+                              'EN_right', 'EW_through', 'ES_left',
+                              'SE_right', 'SN_through', 'SW_left',
+                              'WS_right', 'WE_through', 'WN_left']
 
     def reset(self):
         """
@@ -100,12 +100,10 @@ class Freewheeling_Intersection_V0(gym.Env):
 
         :return: dic, speed and position of different vehicle types
         """
-        # sumoBinary = "/path/to/sumo"
-        sumoBinary = 'D:/SUMO/bin/sumo'
-        sumoCmd = [sumoBinary, '-c', 'FW_Inter.sumocfg']
+        path = './sumo/road_network/FW_Inter.sumocfg'
 
         # create instances
-        traci.start(sumoCmd, label='sim1')
+        traci.start(['sumo', '-c', path], label='sim1')
         vehicles_speed, vehicles_position = self.get_state()
 
         return vehicles_speed, vehicles_position
@@ -171,7 +169,7 @@ class Freewheeling_Intersection_V0(gym.Env):
 
         for edgeID in self.edgeIDs:
             traci.edge.subscribeContext(edgeID, tc.CMD_GET_VEHICLETYPE_VARIABLE,
-                                        [tc.LAST_STEP_VEHICLE_ID_LIST])
+                                        tc.LAST_STEP_VEHICLE_ID_LIST)
             vehicles_on_specific_edge = traci.edge.getContextSubscriptionResults(edgeID)
             for i in range(3):  # on one specific edge, there are three different vehicle types.
                 for vehicleID in vehicles_on_specific_edge:

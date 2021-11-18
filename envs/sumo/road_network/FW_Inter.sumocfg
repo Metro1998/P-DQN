@@ -5,11 +5,11 @@
     <input>
         <net-file value="FW_Inter.net.xml"/>
         <route-files value="FW_Inter.rou.xml"/>
+        <additional-files value="FW_Inter.add.xml"/>
     </input>
 
     <time>
         <begin value="0"/>
-        <end value="3600"/>
     </time>
 
     <Processing>
