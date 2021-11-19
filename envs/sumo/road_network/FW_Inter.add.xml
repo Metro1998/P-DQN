@@ -2,27 +2,29 @@
   <tlLogic id="SmartWolfie" type="static" programID="SmartWolfie_V0" offset="0">
         # north_south_through
         <phase  duration="1000" state="GGGGGGrrrGGGrrrrrrGGGGGGrrrGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGyyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
         # east_west_through
         <phase  duration="1000" state="GGGrrrrrrGGGGGGrrrGGGrrrrrrGGGGGGrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrr"/>
         # north_south_left
         <phase  duration="1000" state="GGGrrrGGGGGGrrrrrrGGGrrrGGGGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrryyyGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
         # east_west_left
         <phase  duration="1000" state="GGGrrrrrrGGGrrrGGGGGGrrrrrrGGGrrrGGG"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGrrryyyGGGrrrrrrGGGrrryyy"/>
         # north_through_left
         <phase  duration="1000" state="GGGGGGGGGGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGyyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
         # east_through_left
         <phase  duration="1000" state="GGGrrrrrrGGGGGGGGGGGGrrrrrrGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrr"/>
         # south_through_left
         <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGGGGGGGGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrr"/>
         # west_through_left
         <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGGGGGGG"/>
+
+        # all yellow phase respectively
+        <phase  duration="1000" state="GGGyyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrr"/>
+        <phase  duration="1000" state="GGGrrryyyGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrryyyGGGrrrrrrGGGrrryyy"/>
+        <phase  duration="1000" state="GGGyyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrr"/>
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrr"/>
         <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGyyyyyy"/>
         # all red
         <phase  duration="1000" state="rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"/>

@@ -12,6 +12,7 @@ import copy
 import traci
 import traci.constants as tc
 from gym import spaces
+from gym.utils import seeding
 
 
 class Freewheeling_Intersection_V0(gym.Env):
@@ -75,14 +76,11 @@ class Freewheeling_Intersection_V0(gym.Env):
 
 
         ))
+        self.seed()
 
         # declare the path to sumo/tools
         # sys.path.append('/path/to/sumo/tools')
         sys.path.append('D:/SUMO/tools')
-
-        self.last_time_yellow = 3
-        # when step() we will save last 'self.n_steps' states
-        self.n_steps = 5
 
         # the edgeID is defined in FW_Inter.edg.xml
         # as you may have different definition in your own .edg.xml, change it.
@@ -93,8 +91,16 @@ class Freewheeling_Intersection_V0(gym.Env):
                               'EN_right', 'EW_through', 'ES_left',
                               'SE_right', 'SN_through', 'SW_left',
                               'WS_right', 'WE_through', 'WN_left']
-
+        self.alpha = 0.2
+        self.YELLOW = 3
         self.LENGTH_LANE = 234.12
+        self.SIMULATION_TIME = 3600
+        # when step() we will save last 'self.N_STEPS' states for state representation
+        self.N_STEPS = 5
+
+        # for every vehicle type the maximum recorded number is 25 w.r.t its position(padded with 'inf') and speed
+        # (padded with '0')
+        self.PAD_LENGTH = 25
 
     def reset(self):
         """
@@ -107,11 +113,10 @@ class Freewheeling_Intersection_V0(gym.Env):
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
         info = self.retrieve()
-        info = sum(info.values(), [])
-        vehicles_speed = [v[1] for v in info]
-        vehicles_position = [v[2] for v in info]
+        # info = sum(info.values(), [])
+        state_one_step = self.get_state_one_step(info)
 
-        return vehicles_speed, vehicles_position
+        return state_one_step
 
     def step(self, action):
         """
@@ -122,20 +127,19 @@ class Freewheeling_Intersection_V0(gym.Env):
               traci.simulationStep()
 
 
-        :param action: array [1 * 2], the former is the phase next period, and the latter is its duration respectively.
+        :param action:array, e.g. array([4, [0, 0, 0, 0, 10, 0, 0, 0]]),
+                             the former is the phase next period, and the latter is duration list w.r.t all phases.
         :return: next_state, reward, done, _
         """
 
         phase_next = action[0]
-        phase_duration = action[1]
+        phase_duration = action[1][phase_next]
         action_old = None
 
-        vehicles_speed_n_steps = {}
-        vehicles_position_n_steps = {}
+        state_n_steps = []
 
-        # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml
-        # We achieve hybrid action space control through switch its phase and steps(controlled by self.last_time_yellow
-        # or self.last_time_green)
+        # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml We achieve hybrid action space
+        # controlling through switch its phase and steps(controlled by self.YELLOW and GREEN(phase_duration)).
         # When the phase is changed(there is possibility that phase next period is same with the phase right now),
 
         if not action_old:
@@ -145,17 +149,18 @@ class Freewheeling_Intersection_V0(gym.Env):
                 # phase next period is same with the phase right now, just accumulate the duration
                 pass
             else:
-                traci.trafficlight.setPhase('SmartWolfie', 2 * (action_old[0] - 1) + 1)
-                for i in range(self.last_time_yellow):
+                traci.trafficlight.setPhase('SmartWolfie', action_old[1][8 + phase_next])
+                for i in range(self.YELLOW):
                     traci.simulationStep()
-        traci.trafficlight.setPhase('SmartWolfie', 2 * (phase_next - 1))
+        traci.trafficlight.setPhase('SmartWolfie', phase_next)
         for i in range(phase_duration):
             traci.simulationStep()
-            if phase_duration - i <= self.n_steps:
-                vehicles_speed, vehicles_position = self.get_state()
-                for k, v in vehicles_speed.items():
-                    if k in vehicles_speed_n_steps:
-                        vehicles_speed_n_steps[k]
+            if phase_duration - i <= self.N_STEPS:
+                info = self.retrieve()
+                state_one_step = self.get_state_one_step(info)
+                state_n_steps.append(state_one_step)
+        reward = self.get_reward(info)
+
         action_old = copy.deepcopy(action)
 
     def retrieve(self):
@@ -194,3 +199,71 @@ class Freewheeling_Intersection_V0(gym.Env):
                     vehicles_raw_info[tem[0]].append([ID, tem[1], tem[2], tem[3], tem[4]])
 
         return vehicles_raw_info
+
+    @property
+    def reward(self):
+        """
+        Temporarily, we just use 'queue' and 'time loss' to design the reward.
+        Alpha is a trade off between the influence of 'queue' and 'time loss'.
+        :return:
+        """
+
+    def get_state_one_step(self, info):
+        """
+
+        :return:
+        """
+        state_one_step = []
+        info = list(info.items())
+        for vehicles_specific_type in info:
+            position_specific_type = []
+            speed_specific_type = []
+            for vehicle in vehicles_specific_type[1]:
+                position_specific_type.append(vehicle[1])
+                speed_specific_type.append(vehicle[2])
+            position_specific_type = sum(position_specific_type, [])
+            speed_specific_type = sum(speed_specific_type, [])
+            np.pad(position_specific_type, (0, self.PAD_LENGTH - len(position_specific_type)), 'constant',
+                   constant_values=(0, float('inf')))
+            np.pad(speed_specific_type, (0, self.LENGTH_LANE - len(speed_specific_type)), 'constant',
+                   constant_values=(0, 0))
+            state_one_step.append(position_specific_type)
+            state_one_step.append(speed_specific_type)
+        state_one_step = sum(state_one_step, [])
+
+        return state_one_step
+
+    def get_reward(self, info):
+        """
+        Temporarily, we just use 'queue' and 'time loss' to design the reward.
+        Alpha is a trade off between the influence of 'queue' and 'time loss'.
+
+        :return:
+        """
+        loss_time = []
+        queue = []
+        info = list(info.items())
+        for vehicles_specific_type in info:
+            loss_time_specific_type = []
+            for vehicle in vehicles_specific_type[1]:
+                loss_time_specific_type.append(vehicle[4])
+            loss_time.append(loss_time_specific_type)
+            queue.append(len(loss_time_specific_type))
+        loss_time = sum(loss_time, [])
+        reward = np.mean(loss_time) + self.alpha * np.mean(loss_time)
+
+        return reward
+
+    def seed(self, seed=None):  # TODO
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
+
+    def render(self, mode='human'):
+        pass
+
+    def close(self):
+        """
+
+        :return:
+        """
+        traci.close()
