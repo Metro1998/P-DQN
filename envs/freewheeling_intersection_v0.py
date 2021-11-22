@@ -18,16 +18,28 @@ from gym.utils import seeding
 class Freewheeling_Intersection_V0(gym.Env):
     """
     Description:
-        A traffic signal control simulator for an isolated intersection.
-        We supposed that there is no concept of cycle in the signal control.
-        Hence you may execute one specific phase again before the others are executed.
-        When one particular phase is over, it's time to decide(choose action) which phase(DISCRETE)
-        and the  phase's duration(CONTINUOUS).
-        If you take advantage of this env, it's a RL problem with hybrid action space actually,
-        but if you just want to train and evaluate with a NORMAL env, just add some confines in
-        env or train.py. # TODO
+        A traffic signal control simulator environment for an isolated intersection.
 
-    Observation:  # TODO
+        We supposed that there is no concept of cycle in the signal control.Hence you may execute one specific phase
+        repeatedly before the others are executed.
+        When one particular phase is over, it's time to decide(choose action) which phase(DISCRETE) to execute and its
+        duration(CONTINUOUS).
+
+        It's a RL problem with hybrid action space actually, but if you just want to train and evaluate with a
+        NORMAL env, just add some confines in env or train.py.
+
+    Observation:
+        Type: Box(400)
+        # 400 = 8 * 25 * 2
+        # 8 phases
+        # We only record the first 25th vehicles in each phase
+        # The distance to the stop line and speed are considered
+        # When vehicles are absent in one phase, pad it with float('inf') and 0 w.r.t position and speed.
+        Num  Observation                   Min      Max
+        0    Phase_0 vehicle_0 position     0       250
+                            ...
+        25   Phase_0 vehicle_0 speed        0       100
+                            ...
 
     Actions:
         Type: Discrete(8)
@@ -53,12 +65,14 @@ class Freewheeling_Intersection_V0(gym.Env):
         6     S_straight_left      5        20
         7     W_straight_left      5        20
 
-    Reward:  # TODO
+    Reward:
+        A combination between vehicle's loss time and queue in one specific phase.
 
-    Starting State:  # TODO
+    Starting State:
+        Initialization according to sumo, actually there is no vehicles at the beginning
 
     Episode Termination:
-        Episode length is greater than 3600.
+        Episode length is greater than SIMULATION_STEPS(3600 in default, for one hour).
     """
 
     def __init__(self):
@@ -180,6 +194,7 @@ class Freewheeling_Intersection_V0(gym.Env):
         action_old = copy.deepcopy(action)
         if self.steps_one_episode > self.SIMULATION_STEPS:
             done = True
+            self.close()
         else:
             done = False
         info = {}
@@ -264,7 +279,7 @@ class Freewheeling_Intersection_V0(gym.Env):
             loss_time.append(loss_time_specific_type)
             queue.append(len(loss_time_specific_type))
         loss_time = sum(loss_time, [])
-        reward = -(np.mean(loss_time) + self.alpha * np.mean(loss_time))
+        reward = -(np.mean(queue) + self.alpha * np.mean(loss_time))
 
         return reward
 
