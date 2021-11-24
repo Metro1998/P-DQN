@@ -7,10 +7,10 @@
 import math
 
 import torch
-import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import random
+import gym
 
 from torch.autograd import Variable
 from copy import deepcopy
@@ -28,45 +28,27 @@ class PDQNAgent(Agent):
 
     NAME = 'P-DQN Agent'
 
-    def __init__(self,
-                 observation_space,
-                 action_space,
-                 actor_kwargs={},
-                 actor_param_kwargs={},
-                 epsilon_initial=1.0,
-                 epsilon_final=0.05,
-                 epsilon_decay=5000,
-                 batch_size=64,
-                 gamma=0.99,
-                 tau_actor=0.01,  # soft update
-                 tau_actor_param=0.01,
-                 initial_memory_threshold=0,
-                 replay_memory_size=1e6,
-                 learning_rate_actor=1e-4,
-                 learning_rate_actor_param=1e-5,
-                 clip_grad=10,
-                 loss_func=F.smooth_l1_loss,
-                 device='cuda' if torch.cuda.is_available() else 'cpu',
-                 seed=None):
-        super(PDQNAgent, self).__init__(observation_space, action_space)
-        self.actor_param_kwargs = actor_param_kwargs
-        self.device = torch.device(device)
-        self.num_actions = self.action_space.spaces[0].n
-        # it's decided by env's action_space
-        # from from https://github.com/cycraig/gym-soccer/blob/master/gym_soccer/envs/soccer_score_goal.py
-        # self.action_space = spaces.Tuple((spaces.Discrete(3),
-        #                                   spaces.Box(low=low0, high=high0, dtype=np.float32),
-        #                                   spaces.Box(low=low1, high=high1, dtype=np.float32),
-        #                                   spaces.Box(low=low2, high=high2, dtype=np.float32)))
+    def __init__(self, config):
+        Agent.__init__(self)
+        self.device = torch.device(config.hyperparameters[device])
+        self.environment = gym.make(config.environment)
+        self.action_space = self.environment.action_space
 
-        self.action_parameter_sizes = np.array([self.action_space.spaces[i].shape[0]
-                                                for i in range(1, self.num_actions + 1)])
-        # every discrete action may have more than one continuous actions
-        # self.action_parameter_sizes = [2, 1, 2, 1] in the upper specific instance
-        self.action_parameter_size = int(self.action_parameter_sizes.sum())
+        self.num_actions = config.env_parameters[PHASE_NUM]
+        # it's decided by env's action_space
+        # In FreewheelingIntersection_v0, the action_space is
+        # self.action_space = spaces.Tuple((
+        #   spaces.Discrete(self.phase_num),
+        #   spaces.Tuple(
+        #        tuple(spaces.Box(action_low[i], action_high[i], dtype=np.float32) for i in range(self.phase_num))
+        #    )
+        # ))
+
+        # In this case(FreewheelingIntersection), every continuous action just has one dimension!
+        self.action_parameter_size = self.num_actions
         self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(device)
         self.action_min = - self.action_max.detach()  # remove gradient
-        self.action_range = (self.action_max - self.action_min).detach()
+        self.action_range = (self.action_max - self.action_min).detach() # 是否要进行归一化
         print([self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)])  # TODO
         self.action_parameter_max_numpy = np.concatenate([self.action_space.spaces[i].high
                                                           for i in range(1, self.num_actions + 1)]).ravel()
@@ -74,51 +56,53 @@ class PDQNAgent(Agent):
                                                           for i in range(1, self.num_actions + 1)]).ravel()
         self.action_parameter_range_numpy = (self.action_parameter_max_numpy - self.action_parameter_min_numpy)
 
-        self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(device)
-        self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(device)
-        self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(device)
+        self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(self.device)
+        self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(self.device)
+        self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(self.device)
+        self.epsilon = config.hyperparameters[epsilon_initial]
+        self.epsilon_initial = config.hyperparameters[epsilon_initial]
+        self.epsilon_final = config.hyperparameters[epsilon_final]
+        self.epsilon_decay = config.hyperparameters[epsilon_decay]
 
-        self.actions_count = 0
-        self.epsilon = epsilon_initial
-        self.epsilon_initial = epsilon_initial
-        self.epsilon_final = epsilon_final
-        self.epsilon_decay = epsilon_decay
+        self.initial_memory_threshold = config.hyperparameters[initial_memory_threshold]
+        self.batch_size = config.hyperparameters[batch_size]
 
-        self.replay_memory_size = replay_memory_size
-        self.initial_memory_threshold = initial_memory_threshold
-        self.batch_size = batch_size
-        self.gamma = gamma
-        self.learning_rate_actor = learning_rate_actor
-        self.learning_rate_actor_param = learning_rate_actor_param
-        self.tau_actor = tau_actor
-        self.tau_actor_param = tau_actor_param
-        self._steps = 0
-        self._updates = 0
-        self.clip_grad = clip_grad
+        self.gamma = config.hyperparameters[gamma]
 
-        self.seed = seed
+        self.learning_rate_actor = config.hyperparameters[learning_rate_actor]
+        self.learning_rate_actor_param = config.hyperparameters[learning_rate_actor_param]
+
+        self.tau_actor = config.hyperparameters[tau_actor]
+        self.tau_actor_param = config.hyperparameters[tau_actor_param]
+        self.clip_grad = config.hyperparameters[clip_grad]
+
+        self.hidden_layer_actor = config.hyperparameters[hidden_layer_actor]
+        self.hidden_layer_actor_param = config.hyperparameters[hidden_layer_actor_param]
+
+        self.seed = config.seed
         random.seed(self.seed)
         self.np_random = np.random.RandomState(seed=seed)
         if self.device == torch.device('cuda'):
             torch.cuda.manual_seed(self.seed)
-        # self._step = 0
-        # self._episode = 0
-        # self.updates = 0
 
-        print(self.num_actions + self.action_parameter_size)
+        self.actions_count = 0
+        self._steps = 0
+        self._updates = 0
 
-        self.actor = QActor(self.observation_space.shape[0], self.num_actions, self.action_parameter_size
-                            , **actor_kwargs).to(device)
-        self.actor_target = QActor(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
-                                   **actor_kwargs).to(device)
+        # ----  Instantiation  ----
+        self.state_size = config.env_parameters[PAHSE_NUM] * config.env_parameters[PAD_LENGTH] * 2
+        self.actor = QActor(self.state_size, self.num_actions, self.action_parameter_size
+                            , self.hidden_layer_actor).to(device)
+        self.actor_target = QActor(self.state_size, self.num_actions, self.action_parameter_size,
+                                   self.hidden_layer_actor).to(device)
         hard_update(source=self.actor, target=self.actor_target)
         # self.actor_target = load_state_dict(self.actor_net.state_dict())
         self.actor_target.eval()
 
-        self.actor_param = ParamActor(self.observation_space.shape[0], self.num_actions,
-                                      self.action_parameter_size, **actor_param_kwargs).to(device)
-        self.actor_param_target = ParamActor(self.observation_space.shape[0], self.num_actions,
-                                             self.action_parameter_size, **actor_param_kwargs).to(device)
+        self.actor_param = ParamActor(self.state_size, self.num_actions,
+                                      self.action_parameter_size, self.hidden_layer_actor_param).to(device)
+        self.actor_param_target = ParamActor(self.state_size, self.num_actions,
+                                             self.action_parameter_size, self.hidden_layer_actor_param).to(device)
         hard_update(source=self.actor_param, target=self.actor_param_target)
         # self.actor_param_target.load_state_dict(self.actor_param.state_dict())
         self.actor_param_target.eval()
@@ -130,11 +114,6 @@ class PDQNAgent(Agent):
         # using AMSgrad ("fixed" version of Adam, amsgrad=True) doesn't seem to help either...
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate_actor)  # TODO 这边有细节
         self.actor_param_optimizer = optim.Adam(self.actor_param.parameters(), lr=self.learning_rate_actor_param)
-        self.replay_memory = Memory(replay_memory_size, observation_space.shape,
-                                    (1 + self.action_parameter_size,), next_actions=False)
-        # Memory这里虽然保留了next_actions的接口，但是DQN是不需要的（用next_states去计算），之所以要＋1是因为actions结构的特殊性
-        # actions = actions_combined[:, 0].long()  # int64
-        # action_parameters = actions_combined[:, 1:]
 
     def __str__(self):
         desc = super().__str__() + '\n'
@@ -145,7 +124,6 @@ class PDQNAgent(Agent):
                 "Gamma: {}\n".format(self.gamma) + \
                 "Tau (actor): {}\n".format(self.tau_actor) + \
                 "Tau (actor-params): {}\n".format(self.tau_actor_param) + \
-                "Replay Memory: {}\n".format(self.replay_memory_size) + \
                 "Batch Size: {}\n".format(self.batch_size) + \
                 "epsilon_initial: {}\n".format(self.epsilon_initial) + \
                 "epsilon_final: {}\n".format(self.epsilon_final) + \
@@ -154,7 +132,7 @@ class PDQNAgent(Agent):
                 "Seed: {}\n".format(self.seed)
         return desc
 
-    def set_action_parameter_passthrough_weights(self, initial_weights, initial_bias=None):
+    def set_action_parameter_passthrough_weights(self, initial_weights, initial_bias=None):  # TODO
         """
 
         :param initial_weights:
@@ -164,13 +142,9 @@ class PDQNAgent(Agent):
         passthrough_layer = self.actor_param.action_parameters_passthrough_layer
         # directly from state to actor_param
         # [self.state_size, self.action_parameter_size]
-        print(initial_weights.shape)
-        print(passthrough_layer.weight.data.size())
         assert initial_weights.shape == passthrough_layer.weight.data.size()
         passthrough_layer.weight.data = torch.Tensor(initial_weights).float().to(self.device)
         if initial_bias is not None:
-            print(initial_bias.shape)
-            print(passthrough_layer.bias.data.size())
             passthrough_layer.bias.data = torch.Tensor(initial_bias).float().to(self.device)
         passthrough_layer.requires_grad = False
         passthrough_layer.weight.requires_grad = False
@@ -193,17 +167,12 @@ class PDQNAgent(Agent):
                     all_action_parameters = torch.from_numpy(np.random.uniform(self.action_parameter_min_numpy,
                                                                                self.action_parameter_max_numpy))
                 else:
-                    # select maximum action
                     Q_a = self.actor.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
-                    # 可能因为forward里面有个cat操作
                     Q_a = Q_a.detach().data.numpy()
                     action = np.argmax(Q_a)
 
-                # add noise only to parameters of chosen action
                 all_action_parameters = all_action_parameters.cpu().data.numpy()
-                offset = np.array([self.action_parameter_sizes[i] for i in range(action)], dtype=int).sum()
-                # offset will help you find the exactly action_parameters
-                action_parameters = all_action_parameters[offset:offset + self.action_parameter_sizes[action]]
+                action_parameters = all_action_parameters[action]
         else:
             with torch.no_grad():
                 state = torch.from_numpy(state).to(self.device)
@@ -211,9 +180,8 @@ class PDQNAgent(Agent):
                 Q_a = self.actor.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
                 Q_a = Q_a.detach().data.numpy()
                 action = np.argmax(Q_a)
-                all_action_parameters = all_action_parameters.cpu().data.numpy()  # TODO cpu() detach()
-                offset = np.array([self.action_parameter_sizes[i] for i in range(action)], dtype=int).sum()
-                action_parameters = all_action_parameters[offset:offset + self.action_parameter_size[action]]
+                all_action_parameters = all_action_parameters.cpu().data.numpy()
+                action_parameters = all_action_parameters[action]
 
         return action, action_parameters, all_action_parameters
 
@@ -246,38 +214,24 @@ class PDQNAgent(Agent):
 
         return grad
 
-    def add_sample(self, state, action, reward, next_state, next_action, terminal):
-        assert len(action) == 1 + self.action_parameter_size
-        self.replay_memory.append(state, action, reward, next_state, terminal)
-
-    def step(self, state, action, reward, next_state, next_action, terminal, time_steps=1):
-        act, all_action_parameters = action
-        self._steps += 1
-
-        self.add_sample(state, np.concatenate([act], all_action_parameters).ravel(), reward, next_state,
-                        np.concatenate([next_action[0], next_action[1]]).ravel(), terminal)
-        if self._steps >= self.batch_size and self._steps >= self.initial_memory_threshold:
-            self.optimize_td_loss()
-            self._updates += 1
-
-    def optimize_td_loss(self):
+    def optimize_td_loss(self, memory):
         """
         Mainly based on https://github.com/X-I-N/my_PDQN/blob/main/agent.py
 
         :return:
         """
-        if len(self.replay_memory) < self.batch_size:
+        if len(memory) < self.batch_size:
             return
-        states, actions, rewards, next_states, terminals = self.replay_memory.sample(self.batch_size)
+        states, actions, rewards, next_states, dones = memory.sample(self.batch_size)
 
         states = torch.from_numpy(states).to(self.device)
         actions_combined = torch.from_numpy(actions).to(self.device)  # make sure to separate actions and parameters
         actions = actions_combined[:, 0].long()  # int64
         action_parameters = actions_combined[:, 1:]
         rewards = torch.from_numpy(rewards).to(self.device).squeeze()
-        # 这边多嘴一句，squeeze()是一个降维的作用，因为在定义reward与dones的时候shape为(1,)因此在传到device的时候需要降维
+        # 这边多嘴一句，squeeze()是一个降维的作用，最后为[batch_size]
         next_states = torch.from_numpy(next_states).to(self.device)
-        terminals = torch.from_numpy(terminals).to(self.device).squeeze()
+        dones = torch.from_numpy(dones).to(self.device).squeeze()
 
         # ----------------------------- optimize Q-network ------------------------------------
         with torch.no_grad():
@@ -288,7 +242,7 @@ class PDQNAgent(Agent):
             # 那个max的维度大小变为1，因此需要做一个sqeeze()的操作
 
             # compute the TD error
-            target = rewards + (1 - terminals) * self.gamma * Qprime
+            target = rewards + (1 - dones) * self.gamma * Qprime
 
         # compute current Q-values using policy network
         q_values = self.actor(states, action_parameters)

@@ -14,8 +14,7 @@ from gym import spaces
 from gym.utils import seeding
 
 
-
-class FreewheelingIntersection_V0(gym.Env):
+class FreewheelingIntersectionEnv(gym.Env):
     """
     Description:
         A traffic signal control simulator environment for an isolated intersection.

@@ -1,3 +1,8 @@
+import gym
+env = gym.make('FreewheelingIntersection-v0')
+env.reset()
+
+""" 
 import os
 import sys
 import traci
@@ -62,4 +67,4 @@ if __name__ == "__main__":
 
     print(vehicles_raw_data)
 
-
+"""

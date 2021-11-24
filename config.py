@@ -1,5 +1,7 @@
 # @author Metro
 # @time 2021/10/14
+import torch.cuda
+import torch.nn.functional as F
 
 
 class config(object):
@@ -7,7 +9,7 @@ class config(object):
 
     def __init__(self):
         self.seed = None
-        self.environment = None
+        self.environment = 'FreewheelingIntersection_v0'
         self.requirements_to_solve_game = None
         self.num_episodes_to_run = None
         self.file_to_save_data_results = None
@@ -42,4 +44,35 @@ class config(object):
             'SIMULATION_STEPS': 3600,
             'N_STEPS': 5,
             'ALPHA': 0.2,  # TODO
+        }
+
+        self.hyperparameters = {
+            'device': 'cuda' if torch.cuda.is_available() else 'cpu',
+            'epsilon_initial': 1.0,
+            'epsilon_final': 0.05,
+            'epsilon_decay': 5000,
+            'replay_memory_size': 1e6,
+            'initial_memory_threshold': 0,
+            'batch_size': 64,
+            'gamma': 0.99,
+            'learning_rate_actor': 1e-4,
+            'learning_rate_actor_param': 1e-5,
+            'clip_grad': 10,
+            'loss_func': F.smooth_l1_loss,
+            'tau_actor': 0.01,
+            'tau_actor_param': 0.01,
+            'hidden_layer_actor': (256, 128, 64),
+            'hidden_layer_actor_param': (256, 128, 64),
+
+
+
+
+
+
+
+
+
+
+
+
         }
