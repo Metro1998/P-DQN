@@ -10,17 +10,15 @@ import torch
 import torch.optim as optim
 import numpy as np
 import random
-import gym
 
 from torch.autograd import Variable
 from copy import deepcopy
-from agents.agent import Agent
+from agents.base_agent import Base_Agent
 from agents.model import QActor, ParamActor
-from utilities.memory.memory import Memory
 from utilities.utilities import *
 
 
-class PDQNAgent(Agent):
+class PDQNBaseAgent(Base_Agent):
     """
     DDPG actor-critic agent for parameterized action spaces
     [Hausknecht and Stone 2016]
@@ -29,12 +27,11 @@ class PDQNAgent(Agent):
     NAME = 'P-DQN Agent'
 
     def __init__(self, config):
-        Agent.__init__(self)
-        self.device = torch.device(config.hyperparameters[device])
-        self.environment = gym.make(config.environment)
+        Base_Agent.__init__(self, config)
+        self.device = torch.device(self.hyperparameters['device'])
         self.action_space = self.environment.action_space
 
-        self.num_actions = config.env_parameters[PHASE_NUM]
+        self.num_actions = self.env_parameters['phase_num']
         # it's decided by env's action_space
         # In FreewheelingIntersection_v0, the action_space is
         # self.action_space = spaces.Tuple((
@@ -48,7 +45,7 @@ class PDQNAgent(Agent):
         self.action_parameter_size = self.num_actions
         self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(device)
         self.action_min = - self.action_max.detach()  # remove gradient
-        self.action_range = (self.action_max - self.action_min).detach() # 是否要进行归一化
+        self.action_range = (self.action_max - self.action_min).detach()  # 是否要进行归一化
         print([self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)])  # TODO
         self.action_parameter_max_numpy = np.concatenate([self.action_space.spaces[i].high
                                                           for i in range(1, self.num_actions + 1)]).ravel()
@@ -59,42 +56,38 @@ class PDQNAgent(Agent):
         self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(self.device)
         self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(self.device)
         self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(self.device)
-        self.epsilon = config.hyperparameters[epsilon_initial]
-        self.epsilon_initial = config.hyperparameters[epsilon_initial]
-        self.epsilon_final = config.hyperparameters[epsilon_final]
-        self.epsilon_decay = config.hyperparameters[epsilon_decay]
+        self.epsilon = self.hyperparameters['epsilon_initial']
+        self.epsilon_initial = self.hyperparameters['epsilon_initial']
+        self.epsilon_final = self.hyperparameters['epsilon_final']
+        self.epsilon_decay = self.hyperparameters['epsilon_decay']
 
-        self.initial_memory_threshold = config.hyperparameters[initial_memory_threshold]
-        self.batch_size = config.hyperparameters[batch_size]
+        self.initial_memory_threshold = self.hyperparameters['initial_memory_threshold']
+        self.batch_size = self.hyperparameters['batch_size']
 
-        self.gamma = config.hyperparameters[gamma]
+        self.gamma = self.hyperparameters['gamma']
 
-        self.learning_rate_actor = config.hyperparameters[learning_rate_actor]
-        self.learning_rate_actor_param = config.hyperparameters[learning_rate_actor_param]
+        self.learning_rate_actor = self.hyperparameters['learning_rate_actor']
+        self.learning_rate_actor_param = self.hyperparameters['learning_rate_actor_param']
 
-        self.tau_actor = config.hyperparameters[tau_actor]
-        self.tau_actor_param = config.hyperparameters[tau_actor_param]
-        self.clip_grad = config.hyperparameters[clip_grad]
+        self.tau_actor = self.hyperparameters['tau_actor']
+        self.tau_actor_param = self.hyperparameters['tau_actor_param']
+        self.clip_grad = self.hyperparameters['clip_grad']
 
-        self.hidden_layer_actor = config.hyperparameters[hidden_layer_actor]
-        self.hidden_layer_actor_param = config.hyperparameters[hidden_layer_actor_param]
+        self.hidden_layer_actor = self.hyperparameters['hidden_layer_actor']
+        self.hidden_layer_actor_param = self.hyperparameters['hidden_layer_actor_param']
 
-        self.seed = config.seed
-        random.seed(self.seed)
-        self.np_random = np.random.RandomState(seed=seed)
-        if self.device == torch.device('cuda'):
-            torch.cuda.manual_seed(self.seed)
+        # Randomization is executed in Base_Agent with self.set_random_seeds(random_seed)
 
         self.actions_count = 0
         self._steps = 0
         self._updates = 0
 
         # ----  Instantiation  ----
-        self.state_size = config.env_parameters[PAHSE_NUM] * config.env_parameters[PAD_LENGTH] * 2
+        self.state_size = self.env_parameters['phase_num'] * self.env_parameters['pad_length'] * 2
         self.actor = QActor(self.state_size, self.num_actions, self.action_parameter_size
-                            , self.hidden_layer_actor).to(device)
+                            , self.hidden_layer_actor).to(self.device)
         self.actor_target = QActor(self.state_size, self.num_actions, self.action_parameter_size,
-                                   self.hidden_layer_actor).to(device)
+                                   self.hidden_layer_actor).to(self.device)
         hard_update(source=self.actor, target=self.actor_target)
         # self.actor_target = load_state_dict(self.actor_net.state_dict())
         self.actor_target.eval()
@@ -107,7 +100,7 @@ class PDQNAgent(Agent):
         # self.actor_param_target.load_state_dict(self.actor_param.state_dict())
         self.actor_param_target.eval()
 
-        self.loss_func = loss_func  # l1_smooth_loss performs better but original paper used MSE
+        self.loss_func = self.hyperparameters['loss_func']  # l1_smooth_loss performs better but original paper used MSE
 
         # Original DDPG paper [Lillicrap et al. 2016] used a weight decay of 0.01 for Q (critic)
         # but setting weight_decay=0.01 on the critic_optimiser seems to perform worse...
@@ -151,7 +144,7 @@ class PDQNAgent(Agent):
         passthrough_layer.bias.requires_grad = False
         hard_update(source=self.actor_param, target=self.actor_param_target)
 
-    def choose_action(self, state, train=True):
+    def pick_action(self, state, train=True):
         if train:
             self.epsilon = self.epsilon_final + (self.epsilon_initial - self.epsilon_final) * \
                            math.exp(-1. * self.actions_count / self.epsilon_decay)
@@ -163,7 +156,7 @@ class PDQNAgent(Agent):
                 # Hausknecht and Stone [2016] use epsilon greedy actions with uniform random action-parameter
                 # exploration
                 if random.random() < self.epsilon:
-                    action = self.np_random.choice(self.num_actions)
+                    action = np.random.randint(self.num_actions)
                     all_action_parameters = torch.from_numpy(np.random.uniform(self.action_parameter_min_numpy,
                                                                                self.action_parameter_max_numpy))
                 else:
@@ -300,3 +293,12 @@ class PDQNAgent(Agent):
         self.actor.load_state_dict(torch.load(actor_path, actor_param_path))
         self.actor_param.load_state_dict(torch.load(actor_path, actor_param_path))
         print('Models loaded successfully')
+
+    def step(self, state, action, reward, next_state, next_action, terminal, time_steps):  # TODO
+        pass
+
+    def start_episode(self):
+        pass
+
+    def end_episode(self):
+        pass

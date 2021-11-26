@@ -12,7 +12,7 @@ import numpy as np
 import gym
 import gym_goal
 # TODO
-from agents.pdqn import PDQNAgent
+from agents.pdqn import PDQNBaseAgent
 
 @click.command()
 @click.option('--seed', default=0, help='Random seed.', type=int)

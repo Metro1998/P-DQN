@@ -1,7 +1,6 @@
-import gym
-env = gym.make('FreewheelingIntersection-v0')
-env.reset()
-
+import random
+for i in range(20):
+    print(random.randint(10))
 """ 
 import os
 import sys
