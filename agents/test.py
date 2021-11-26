@@ -1,6 +1,10 @@
-import random
-for i in range(20):
-    print(random.randint(10))
+import numpy as np
+a = [0, 1, 2, 3]
+b = [1, 2, 3, 4]
+a = np.array(a)
+b = np.array(b)
+print(a[0])
+
 """ 
 import os
 import sys

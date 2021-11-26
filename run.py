@@ -34,14 +34,18 @@ class Train_and_Evaluate(object):
 
         self.maximum_episodes = config.hyperparameters['maximum_episodes']
 
+        self.train = config.train
+        self.evaluate = config.evaluate
+        self.evaluate_internal = config.evaluate_internal
+
         # Training Loop
-    def train_and_evaluate(self):
+
+    def train(self):
         """
 
         :return:
         """
         start_time = time.time()
-        train = True
 
         for i_episode in range(self.maximum_episodes):
 
@@ -52,13 +56,14 @@ class Train_and_Evaluate(object):
             episode_reward = 0
             episode_steps = 0
             done = False
-            state = self.env.reset()
+            state = self.env.reset()  # n_steps
+            state = state[:-1]  # The last piece of n_steps
 
             while not done:
                 if self.total_steps < self.randomly_pick_steps:
                     action = self.agent.randomly_pick()
                 else:
-                    action = self.agent.pick_action(state, train)
+                    action = self.agent.pick_action(state, self.train)
 
                 if len(self.memory) > self.batch_size:
                     for i in range(self.updates_per_step):
@@ -66,6 +71,8 @@ class Train_and_Evaluate(object):
                         self.total_updates += 1
 
                 next_state, reward, done, _ = self.env.step(action)
+                next_state = next_state[:-1]
+                reward = reward[0]
                 episode_steps += 1
                 episode_reward += reward
                 self.total_steps += 1
@@ -73,10 +80,6 @@ class Train_and_Evaluate(object):
                 self.memory.push(state, action, reward, next_state, done)
 
                 state = next_state
-
-
-
-
 
 
 

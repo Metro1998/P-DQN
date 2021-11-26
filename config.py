@@ -9,6 +9,9 @@ class config(object):
 
     def __init__(self):
         self.seed = None
+        self.train = True
+        self.evaluate = True
+        self.evaluate_internal = 5
         self.environment = 'FreewheelingIntersection_v0'
         self.requirements_to_solve_game = None
         self.num_episodes_to_run = None
