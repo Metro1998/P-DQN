@@ -43,7 +43,7 @@ class PDQNBaseAgent(Base_Agent):
 
         # In this case(FreewheelingIntersection), every continuous action just has one dimension!
         self.action_parameter_size = self.num_actions
-        self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(device)
+        self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(self.device)
         self.action_min = - self.action_max.detach()  # remove gradient
         self.action_range = (self.action_max - self.action_min).detach()  # 是否要进行归一化
         print([self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)])  # TODO
@@ -79,8 +79,6 @@ class PDQNBaseAgent(Base_Agent):
         # Randomization is executed in Base_Agent with self.set_random_seeds(random_seed)
 
         self.actions_count = 0
-        self._steps = 0
-        self._updates = 0
 
         # ----  Instantiation  ----
         self.state_size = self.env_parameters['phase_num'] * self.env_parameters['pad_length'] * 2
@@ -177,6 +175,17 @@ class PDQNBaseAgent(Base_Agent):
                 action_parameters = all_action_parameters[action]
 
         return action, action_parameters, all_action_parameters
+
+    def randomly_pick(self):
+        """
+        if total_steps < randomly_pick_steps, we will execute random selection.
+        The random action includes random phase and all phases' duration.
+
+        :return:
+        """
+        random_action = [np.random.randint(self.num_actions)]
+        random_action_ = [np.random.randint(self.action_space.spaces[i].high) for i in range(1, self.num_actions + 1)]
+        return np.concatenate((random_action, random_action_), axis=1)
 
     def _invert_gradients(self, grad, vals, grad_type, inplace=True):
         if grad_type == 'actions':
@@ -293,9 +302,6 @@ class PDQNBaseAgent(Base_Agent):
         self.actor.load_state_dict(torch.load(actor_path, actor_param_path))
         self.actor_param.load_state_dict(torch.load(actor_path, actor_param_path))
         print('Models loaded successfully')
-
-    def step(self, state, action, reward, next_state, next_action, terminal, time_steps):  # TODO
-        pass
 
     def start_episode(self):
         pass

@@ -14,6 +14,8 @@ class config(object):
         self.num_episodes_to_run = None
         self.file_to_save_data_results = None
         self.file_to_save_results_graph = None
+        self.file_to_save_actor = None
+        self.file_to_save_actor_param = None
         self.runs_per_agent = None
         self.visualise_overall_results = None
         self.visualise_individual_results = None
@@ -26,7 +28,7 @@ class config(object):
         self.randomise_random_seed = True
         self.show_solution_score = False
         self.debug_mode = False
-
+        self.save_freq = 5
         self.env_parameters = {
             'phase_num': 8,
             'action_low': 5.,
@@ -63,16 +65,7 @@ class config(object):
             'tau_actor_param': 0.01,
             'hidden_layer_actor': (256, 128, 64),
             'hidden_layer_actor_param': (256, 128, 64),
-
-
-
-
-
-
-
-
-
-
-
-
+            'random_pick_steps': 10000,
+            'updates_per_step': 1,
+            'maximum_episodes': 500,
         }
