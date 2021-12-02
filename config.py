@@ -72,3 +72,8 @@ class config(object):
             'updates_per_step': 1,
             'maximum_episodes': 500,
         }
+
+        self.agent_to_color_dictionary = {
+            'P-DQN': '#0000FF',
+            'intelligent_light': '#0E0E0F',
+        }
