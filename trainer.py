@@ -13,7 +13,8 @@ class Train_and_Evaluate(object):
 
     def __init__(self, config):
         # Environment
-        self.env = gym.make('FreewheelingIntersection_v0')
+        self.env_name = config.environment
+        self.env = gym.make(self.env_name)
 
         # Agent
         self.agent = PDQNBaseAgent(config)
@@ -40,6 +41,9 @@ class Train_and_Evaluate(object):
 
         self.agent_to_color_group = config.agent_to_color_dictionary
         self.standard_deviation_results = config.standard_deviation_results
+
+        self.colors = ['red', 'blue', 'green', 'orange', 'yellow', 'purple']
+        self.color_idx = 0
 
         # Training Loop
 
@@ -88,7 +92,7 @@ class Train_and_Evaluate(object):
                 i_episode, self.total_steps, episode_steps, episode_reward))
 
     def visualize_overall_agent_results(self, agent_results, agent_name, show_mean_and_std_range=True,
-                                        show_each_run=False, color=None, ax=None, title=None, y_limits=None):
+                                        show_each_run=False, color=None, title=None, y_limits=None):
         """
         Visualize the results for one agent.
 
@@ -104,12 +108,12 @@ class Train_and_Evaluate(object):
         """
         assert isinstance(agent_results, list), 'agent_results must be a list of lists.'
         assert isinstance(agent_results[0], list), 'agent_result must be a list of lists.'
-        if not ax:
-            ax = plt.gca()
+        fig, ax = plt.subplots()
         if not color:
             color = self.agent_to_color_group[agent_name]
         if show_mean_and_std_range:
-            mean_minus_x_std, mean_results, mean_plus_x_std = self.get_mean_and_standard_deviation_difference(agent_results)
+            mean_minus_x_std, mean_results, mean_plus_x_std = self.get_mean_and_standard_deviation_difference(
+                agent_results)
             x_vals = list(range(len(mean_results)))
             ax.plot(x_vals, mean_results, label=agent_name, color=color)
             ax.plot(x_vals, mean_minus_x_std, color=color, alpha=0.1)  # TODO
@@ -118,9 +122,29 @@ class Train_and_Evaluate(object):
         else:
             for ix, result in enumerate(agent_results):
                 x_vals = list(range(len(agent_results[0])))
-                ax.plot(x_vals, requests, label=agent_name + '_{}'.format(ix + 1), color=color)
-                # Necessity to change the color
+                ax.plot(x_vals, result, label=agent_name + '_{}'.format(ix + 1), color=color)
+                color = self.get_next_color()
 
+        ax.set_facecolor('xkcd:white')
+        ax.legend(loc='upper right', shadow='Ture', facecolor='inherit')
+        ax.set_title(self.env_name, fontsize=15, fontweight='bold')
+        ax.set_ylabel('Rolling Episode Scores')
+        ax.set_xlabel('Episode Number')
+        for spine in ['right', 'top']:
+            ax.spines[spine].set_visibl(False)
+        ax.set_xlim([0, x_vals[-1]])
+
+        if y_limits is None:
+            y_limits = self.get_y_limits(agent_results)
+        ax.set_ylin(y_limits)
+
+
+
+
+
+
+
+        plt.tight_layout()
 
     def get_mean_and_standard_deviation_difference(self, results):
         """
@@ -130,20 +154,50 @@ class Train_and_Evaluate(object):
         :param results:
         :return:
         """
+
         def get_results_at_a_time_step(results, timestep):
             results_at_a_time_step = [result[timestep] for result in results]
             return results_at_a_time_step
+
         def get_std_at_a_time_step(results, timestep):
             results_at_a_time_step = [result[timestep] for result in results]
             return np.std(results_at_a_time_step)
+
         mean_results = [np.mean(get_results_at_a_time_step(results, timestep)) for timestep in range(len(results[0]))]
         mean_minus_x_std = [mean_val - self.standard_deviation_results * get_std_at_a_time_step(results, timestep)
                             for timestep, mean_val in enumerate(mean_results)]
         mean_plus_x_std = [mean_val - self.standard_deviation_results * get_std_at_a_time_step(results, timestep)
-                            for timestep, mean_val in enumerate(mean_results)]
+                           for timestep, mean_val in enumerate(mean_results)]
         return mean_minus_x_std, mean_results, mean_plus_x_std
 
+    def get_next_color(self):
+        """
+        Gets the next color in list self.colors. If it gets to the end then it starts from beginning.
 
+        :return:
+        """
+        self.color_idx += 1
+        if self.color_idx >= len(self.colors):
+            self.color_idx = 0
 
+        return self.colors[self.color_idx]
 
+    def get_y_limits(self, results):
+        """
+        Extracts the minimum and maximum seen y_vals from a set of results.
+
+        :param results:
+        :return:
+        """
+        min_result = float('inf')
+        max_result = float('-inf')
+        for result in results:
+            tem_max = np.max(result)
+            tem_min = np.min(result)
+            if tem_max > max_result:
+                max_result = tem_max
+            if tem_min < min_result:
+                min_result = tem_min
+        y_limits = [min_result, max_result]
+        return y_limits
 
