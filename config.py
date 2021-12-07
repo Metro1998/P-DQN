@@ -32,6 +32,7 @@ class config(object):
         self.show_solution_score = False
         self.debug_mode = False
         self.save_freq = 5
+        self.simulations_num = 10
         self.env_parameters = {
             'phase_num': 8,
             'action_low': 5.,

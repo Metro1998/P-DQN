@@ -6,7 +6,7 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 from agents.pdqn import PDQNBaseAgent
-from utilities.memory.memory import ReplayBuffer
+from utilities.memory import ReplayBuffer
 
 
 class Train_and_Evaluate(object):
@@ -138,12 +138,6 @@ class Train_and_Evaluate(object):
             y_limits = self.get_y_limits(agent_results)
         ax.set_ylin(y_limits)
 
-
-
-
-
-
-
         plt.tight_layout()
 
     def get_mean_and_standard_deviation_difference(self, results):
@@ -201,3 +195,4 @@ class Train_and_Evaluate(object):
         y_limits = [min_result, max_result]
         return y_limits
 
+if __name__ == "__main__":

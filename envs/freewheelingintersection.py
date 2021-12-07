@@ -104,7 +104,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.alpha = config.env_parameters['alpha']
         self.steps_episode = 0
         self.reward_last_phase = 0
-
+        
         action_low = np.array([self.action_low] * self.phase_num)
         action_high = np.array([self.action_high] * self.phase_num)
         self.action_space = spaces.Tuple((
