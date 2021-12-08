@@ -7,6 +7,7 @@
 import gym
 import numpy as np
 import sys
+import random
 import copy
 import traci
 import traci.constants as tc
@@ -101,9 +102,10 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.n_steps = config.env_parameters['n_steps']
 
         self.alpha = config.env_parameters['alpha']
-        self.steps_episode = 0
-        self.reward_last_phase = 0
-        
+        self.episode_steps = 0
+        self.reward_last_phase = []
+        self.action_old = []
+
         action_low = np.array([self.action_low] * self.phase_num)
         action_high = np.array([self.action_high] * self.phase_num)
         self.action_space = spaces.Tuple((
@@ -122,7 +124,7 @@ class FreewheelingIntersectionEnv(gym.Env):
             high=observation_high
         )
         seed = config.seed
-        self.seed(self.seed)
+        self.seed(seed)
 
         # declare the path to sumo/tools
         # sys.path.append('/path/to/sumo/tools')
@@ -138,15 +140,14 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
-        self.steps_episode = 0
+        self.episode_steps = 0
         raw = self.retrieve()
-        # info = sum(info.values(), [])
         state_one_step = self.compute_state_one_step(raw)
         self.reward_last_phase = self.compute_reward(raw)
 
-        return state_one_step
+        return np.array(state_one_step)
 
-    def step(self, action):
+    def step(self, action: list):
         """
 
         Note: the sumo(or traci) doesn't need an action every step until one specific phase is over,
@@ -155,7 +156,7 @@ class FreewheelingIntersectionEnv(gym.Env):
               traci.simulationStep()
 
 
-        :param action:array, e.g. array([4, 5, 6, 8, 6, 10, 12, 16, 9]]),
+        :param action:array, e.g. array([4, 5, 6, 8, 6, 10, 12, 16, 9]),
                              the first element is the phase next period,
                              and the latter ones are duration list w.r.t all phases.
         :return: next_state, reward, done, _
@@ -164,50 +165,55 @@ class FreewheelingIntersectionEnv(gym.Env):
         phase_next = action[0]
         phase_duration = action[phase_next + 1]
         reward = []
-        action_old = None
 
         # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml We achieve hybrid action space
-        # controlling through switch its phase and steps(controlled by self.YELLOW and GREEN(phase_duration)).
-        # When the phase is changed(there is possibility that phase next period is same with the phase right now),
+        # control through switch its phase and steps(controlled by self.YELLOW and GREEN(phase_duration)).
+        # There is possibility that phase next period is same with the phase right now
 
-        if not action_old:
+        states = []
+        if not self.action_old:
             pass
         else:
-            if action[0] == action_old[0]:
-                # phase next period is same with the phase right now, just accumulate the duration
+            if action[0] == self.action_old[0]:
+                # Phase next period is same with the phase right now, just accumulate the duration
                 pass
             else:
+                # When phase is changed, YELLOW PHASE is executed.
                 traci.trafficlight.setPhase('SmartWolfie', action_old[1 + phase_next])
                 for i in range(self.yellow):
                     traci.simulationStep()
-                    self.steps_episode += 1
+                    self.episode_steps += 1
+                    raw = self.retrieve()
+                    state_one_step = self.compute_state_one_step(raw)
+                    states.append(state_one_step)
+
         traci.trafficlight.setPhase('SmartWolfie', phase_next)
         for i in range(phase_duration):
             traci.simulationStep()
-            self.steps_episode += 1
-            initial = True
-            if phase_duration - i <= self.n_steps:
-                raw = self.retrieve()
-                if initial:
-                    state_n_steps = self.compute_state_one_step(raw)
-                    initial = False
-                else:
-                    state_n_steps = np.vstack((state_n_steps, self.compute_state_one_step(raw)))
+            self.episode_steps += 1
+            raw = self.retrieve()
+            state_one_step = self.compute_state_one_step(raw)
+            states.append(state_one_step)
+
+        states = np.array(states, dtype=float)
+
+        raw = self.retrieve()
         reward_present_phase = self.compute_reward(raw)
+
         reward.append(reward_present_phase[0] - self.reward_last_phase[0])
         for i in range(3):
             reward.append(reward_present_phase[i + 1])
-        reward = np.array(reward, dtype=float32)
+
+        reward = np.array(reward, dtype=float)
         self.reward_last_phase = copy.deepcopy(reward_present_phase)
 
-        action_old = copy.deepcopy(action)
-        if self.steps_episode > self.simulation_steps:
+        self.action_old = copy.deepcopy(action)
+        if self.episode_steps > self.simulation_steps:
             done = True
-            self.close()
         else:
             done = False
         info = {}
-        return state_n_steps, reward, done, info
+        return states, reward, done, info
 
     def retrieve(self):
         """
@@ -228,7 +234,7 @@ class FreewheelingIntersectionEnv(gym.Env):
                     vehicles_on_specific_edge.append(str(vehicleID[i]))
 
                 for ID in vehicles_on_specific_edge:
-                    tem = []
+                    tem = [None] * 5
                     traci.vehicle.subscribe(ID, (tc.VAR_TYPE, tc.VAR_LANEPOSITION, tc.VAR_SPEED,
                                                  tc.VAR_ACCUMULATED_WAITING_TIME, tc.VAR_TIMELOSS))
                     for v in traci.vehicle.getSubscriptionResults(ID).values():
@@ -256,6 +262,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         for vehicles_specific_type in raw:
             position_specific_type = []
             speed_specific_type = []
+
             for vehicle in vehicles_specific_type[1]:
                 position_specific_type.append(vehicle[1])
                 speed_specific_type.append(vehicle[2])
@@ -269,7 +276,7 @@ class FreewheelingIntersectionEnv(gym.Env):
             state_one_step.append(speed_specific_type)
         state_one_step = sum(state_one_step, [])
 
-        return np.array(state_one_step, dtype=np.float32)
+        return state_one_step
 
     def compute_reward(self, raw):
         """
@@ -279,29 +286,29 @@ class FreewheelingIntersectionEnv(gym.Env):
         :return:
         """
         loss_time = []
-        accumulated_waitting_time = []
+        accumulated_waiting_time = []
         queue = []
-        reward = []
+        reward = [0] * 4
         raw = list(raw.items())
         for vehicles_specific_type in raw:
             loss_time_specific_type = []
-            accumulated_waitting_time_specific_type = []
+            accumulated_waiting_time_specific_type = []
             for vehicle in vehicles_specific_type[1]:
                 loss_time_specific_type.append(vehicle[4])
-                accumulated_waitting_time_specific_type.append(vehicle[3])
+                accumulated_waiting_time_specific_type.append(vehicle[3])
             loss_time.append(loss_time_specific_type)
-            accumulated_waitting_time.append(accumulated_waitting_time_specific_type)
+            accumulated_waiting_time.append(accumulated_waiting_time_specific_type)
             queue.append(len(loss_time_specific_type))
         loss_time = sum(loss_time, [])
-        accumulated_waitting_time = sum(accumulated_waitting_time, [])
+        accumulated_waiting_time = sum(accumulated_waiting_time, [])
         reward[0] = (np.mean(queue) + self.alpha * np.mean(loss_time))
         reward[1] = np.mean(queue)
         reward[2] = np.mean(loss_time)
-        reward[3] = np.mean(accumulated_waitting_time)
+        reward[3] = np.mean(accumulated_waiting_time)
 
-        return np.array(reward, dtype=np.float32)
+        return reward
 
-    def seed(self, seed):  # TODO
+    def seed(self, seed=None):
         random.seed(seed)
         np.random.seed(seed)
 

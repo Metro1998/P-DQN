@@ -1,3 +1,5 @@
+import torch
+import torch.nn.functional as F
 from config import Config
 from trainer import Train_and_Evaluate
 
@@ -17,6 +19,9 @@ config.standard_deviation_results = 1.0
 config.randomise_random_seed = True
 config.save_freq = 5
 config.simulations_num = 10
+config.rolling_score_window = 5
+config.runs_per_agent = 10
+config.agent_name = 'P-DQN'
 
 
 config.env_parameters = {

@@ -104,6 +104,8 @@ class Train_and_Evaluate(object):
                 print("Episode: {}, total steps:{}, episode steps:{}, scores:{}".format(
                     i_episode, self.total_steps, episode_steps, total_episode_score_so_far))
 
+                self.env.close()
+
             rolling_scores_for_diff_runs.append(game_full_episodes_rolling_scores)
 
         visualize_overall_agent_results(agent_results=rolling_scores_for_diff_runs,
@@ -112,6 +114,3 @@ class Train_and_Evaluate(object):
                                         agent_to_color_dictionary=self.agent_to_color_dictionary,
                                         standard_deviation_results=1,
                                         title='Training Result')
-
-
-if __name__ == "__main__":

@@ -28,6 +28,8 @@ class PDQNBaseAgent(Base_Agent):
 
     def __init__(self, config):
         Base_Agent.__init__(self, config)
+        seed = config.seed
+        self.seed(seed)
         self.device = torch.device(self.hyperparameters['device'])
         self.action_space = self.environment.action_space
 
@@ -308,3 +310,19 @@ class PDQNBaseAgent(Base_Agent):
 
     def end_episode(self):
         pass
+
+    def seed(self, seed=None):
+        """
+
+        :param seed:
+        :return:
+        """
+        random.seed(seed)
+        np.random.seed(seed)
+
+        torch.manual_seed(seed)  # CPU
+        torch.cuda.manual_seed(seed)  # Present GPU
+        torch.cuda.manual_seed_all(seed)  # All GPUs
+
+        torch.backends.cudnn.deterministic = True
+        torch.backends.benchmark = False
