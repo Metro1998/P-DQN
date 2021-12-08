@@ -2,6 +2,8 @@
 # @time 2021/11/03
 
 import torch
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def soft_update(target, source, tau):
@@ -14,10 +16,120 @@ def hard_update(target, source):
         target_param.data.copy_(param.data)
 
 
+# -------- Plot --------
+def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std_range=True,
+                                    agent_to_color_dictionary=None, standard_deviation_results=1, title=None):
+    """
+    Visualize the results for one agent.
+
+    :param title:
+    :param standard_deviation_results:
+    :param agent_to_color_dictionary:
+    :param agent_results: list of lists, each
+    :param agent_name:
+    :param show_mean_and_std_range:
+    :return:
+    """
+    assert isinstance(agent_results, list), 'agent_results must be a list of lists.'
+    assert isinstance(agent_results[0], list), 'agent_result must be a list of lists.'
+    fig, ax = plt.subplots()
+    color = agent_to_color_dictionary[agent_name]
+    if show_mean_and_std_range:
+        mean_minus_x_std, mean_results, mean_plus_x_std = get_mean_and_standard_deviation_difference(
+            agent_results, standard_deviation_results)
+        x_vals = list(range(len(mean_results)))
+        ax.plot(x_vals, mean_results, label=agent_name, color=color)
+        ax.plot(x_vals, mean_minus_x_std, color=color, alpha=0.1)  # TODO
+        ax.plot(x_vals, mean_plus_x_std, color=color, alpha=0.1)
+        ax.fill_between(x_vals, y1=mean_minus_x_std, y2=mean_plus_x_std, alpha=0.1, color=color)
+    else:
+        color_idx = 0
+        colors = ['red', 'blue', 'green', 'orange', 'yellow', 'purple']
+        for ix, result in enumerate(agent_results):
+            x_vals = list(range(len(agent_results[0])))
+            ax.plot(x_vals, result, label=agent_name + '_{}'.format(ix + 1), color=color)
+            color, color_idx = get_next_color(colors, color_idx)
+
+    ax.set_facecolor('xkcd:white')
+    ax.legend(loc='upper right', shadow='Ture', facecolor='inherit')
+    ax.set_title(title, fontsize=15, fontweight='bold')
+    ax.set_ylabel('Rolling Episode Scores')
+    ax.set_xlabel('Episode Number')
+    for spine in ['right', 'top']:
+        ax.spines[spine].set_visibl(False)
+    ax.set_xlim([0, x_vals[-1]])
+
+    y_limits = get_y_limits(agent_results)
+    ax.set_ylin(y_limits)
+
+    plt.tight_layout()
+
+
+def get_mean_and_standard_deviation_difference(results, standard_deviation_results):
+    """
+    From a list of lists of specific agent results it extracts the mean result and the mean result plus or minus
+    some multiple of standard deviation.
+
+    :param standard_deviation_results:
+    :param results:
+    :return:
+    """
+
+    def get_results_at_a_time_step(results_, timestep):
+        results_at_a_time_step = [result[timestep] for result in results_]
+        return results_at_a_time_step
+
+    def get_std_at_a_time_step(results_, timestep):
+        results_at_a_time_step = [result[timestep] for result in results_]
+        return np.std(results_at_a_time_step)
+
+    mean_results = [np.mean(get_results_at_a_time_step(results, timestep)) for timestep in range(len(results[0]))]
+    mean_minus_x_std = [mean_val - standard_deviation_results * get_std_at_a_time_step(results, timestep)
+                        for timestep, mean_val in enumerate(mean_results)]
+    mean_plus_x_std = [mean_val - standard_deviation_results * get_std_at_a_time_step(results, timestep)
+                       for timestep, mean_val in enumerate(mean_results)]
+    return mean_minus_x_std, mean_results, mean_plus_x_std
+
+
+def get_next_color(colors=None, color_idx=None):
+    """
+    Gets the next color in list self.colors. If it gets to the end then it starts from beginning.
+
+    :return:
+    """
+
+    color_idx += 1
+    if color_idx >= len(colors):
+        color_idx = 0
+
+    return colors[color_idx], color_idx
+
+
+def get_y_limits(results):
+    """
+    Extracts the minimum and maximum seen y_vals from a set of results.
+
+    :param results:
+    :return:
+    """
+    min_result = float('inf')
+    max_result = float('-inf')
+    for result in results:
+        tem_max = np.max(result)
+        tem_min = np.min(result)
+        if tem_max > max_result:
+            max_result = tem_max
+        if tem_min < min_result:
+            min_result = tem_min
+    y_limits = [min_result, max_result]
+    return y_limits
+
+
 class SharedAdam(torch.optim.Adam):
     """
     Shared optimizer, the parameters in the optimizer will shared in the multiprocessors.
     """
+
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.99), eps=1e-8, weight_decay=0):
         super(SharedAdam, self).__init__(params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
         # State initialization
@@ -31,4 +143,3 @@ class SharedAdam(torch.optim.Adam):
                 # share in memory
                 state['exp_avg'].share_memory_()
                 state['exp_avg_sq'].share_memory_()
-

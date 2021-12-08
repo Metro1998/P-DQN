@@ -11,7 +11,6 @@ import copy
 import traci
 import traci.constants as tc
 from gym import spaces
-from gym.utils import seeding
 
 
 class FreewheelingIntersectionEnv(gym.Env):
@@ -82,7 +81,7 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         # for every vehicle type the maximum recorded number is 25 w.r.t its position(padded with 'inf') and speed
         # (padded with '0')
-        self.pad_length = config.env_parameters['pad_length']
+        self.pad_length = self.env_parameters['pad_length']
 
         self.lane_length_high = self.env_parameters['lane_length_high']
         self.speed_high = self.env_parameters['speed_high']

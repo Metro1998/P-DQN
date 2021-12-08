@@ -4,7 +4,7 @@ import torch.cuda
 import torch.nn.functional as F
 
 
-class config(object):
+class Config(object):
     """ Object to hold the config requirements for an agent. """
 
     def __init__(self):
@@ -13,26 +13,21 @@ class config(object):
         self.evaluate = True
         self.evaluate_internal = 5
         self.environment = 'FreewheelingIntersection_v0'
-        self.requirements_to_solve_game = None
         self.num_episodes_to_run = None
         self.file_to_save_data_results = None
         self.file_to_save_results_graph = None
         self.file_to_save_actor = None
         self.file_to_save_actor_param = None
-        self.runs_per_agent = None
-        self.visualise_overall_results = None
-        self.visualise_individual_results = None
         self.hyperparameters = None
         self.env_parameters = None
-        self.use_GPU = None
-        self.overwrite_existing_results_file = None
         self.save_model = False
         self.standard_deviation_results = 1.0
         self.randomise_random_seed = True
-        self.show_solution_score = False
-        self.debug_mode = False
         self.save_freq = 5
         self.simulations_num = 10
+        self.rolling_score_window = 5
+        self.runs_per_agent = 10
+        self.agent_name = 'P-DQN'
         self.env_parameters = {
             'phase_num': 8,
             'action_low': 5.,
