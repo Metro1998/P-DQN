@@ -209,9 +209,9 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         self.action_old = copy.deepcopy(action)
         if self.episode_steps > self.simulation_steps:
-            done = True
+            done = 1
         else:
-            done = False
+            done = 0
         info = {}
         return states, reward, done, info
 

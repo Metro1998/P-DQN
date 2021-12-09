@@ -70,7 +70,7 @@ class Train_and_Evaluate(object):
                 # TODO
                 episode_reward = 0
                 episode_steps = 0
-                done = False
+                done = 0
                 state = self.env.reset()  # n_steps
                 state = state[:-1]  # The last piece of n_steps
 

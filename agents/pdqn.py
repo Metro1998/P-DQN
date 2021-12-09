@@ -4,15 +4,10 @@
 """
   Mainly based on https://github.com/cycraig/MP-DQN/blob/master/agents/pdqn.py
 """
+
 import math
-
-import torch
 import torch.optim as optim
-import numpy as np
 import random
-
-from torch.autograd import Variable
-from copy import deepcopy
 from agents.base_agent import Base_Agent
 from agents.model import QActor, ParamActor
 from utilities.utilities import *
@@ -28,11 +23,8 @@ class PDQNBaseAgent(Base_Agent):
 
     def __init__(self, config):
         Base_Agent.__init__(self, config)
-        seed = config.seed
-        self.seed(seed)
         self.device = torch.device(self.hyperparameters['device'])
         self.action_space = self.environment.action_space
-
         self.num_actions = self.env_parameters['phase_num']
         # it's decided by env's action_space
         # In FreewheelingIntersection_v0, the action_space is
@@ -42,14 +34,14 @@ class PDQNBaseAgent(Base_Agent):
         #        tuple(spaces.Box(action_low[i], action_high[i], dtype=np.float32) for i in range(self.phase_num))
         #    )
         # ))
-
         # In this case(FreewheelingIntersection), every continuous action just has one dimension!
+
         self.action_parameter_size = self.num_actions
         self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(self.device)
         self.action_min = - self.action_max.detach()  # remove gradient
         self.action_range = (self.action_max - self.action_min).detach()  # 是否要进行归一化
-        print([self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)])  # TODO
-        self.action_parameter_max_numpy = np.concatenate([self.action_space.spaces[i].high
+
+        self.action_parameter_max_numpy = np.concatenate([self.action_space.spaces[i].high + 1
                                                           for i in range(1, self.num_actions + 1)]).ravel()
         self.action_parameter_min_numpy = np.concatenate([self.action_space.spaces[i].low
                                                           for i in range(1, self.num_actions + 1)]).ravel()
@@ -58,6 +50,7 @@ class PDQNBaseAgent(Base_Agent):
         self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(self.device)
         self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(self.device)
         self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(self.device)
+
         self.epsilon = self.hyperparameters['epsilon_initial']
         self.epsilon_initial = self.hyperparameters['epsilon_initial']
         self.epsilon_final = self.hyperparameters['epsilon_final']
@@ -70,17 +63,16 @@ class PDQNBaseAgent(Base_Agent):
 
         self.learning_rate_actor = self.hyperparameters['learning_rate_actor']
         self.learning_rate_actor_param = self.hyperparameters['learning_rate_actor_param']
-
         self.tau_actor = self.hyperparameters['tau_actor']
         self.tau_actor_param = self.hyperparameters['tau_actor_param']
-        self.clip_grad = self.hyperparameters['clip_grad']
-
         self.hidden_layer_actor = self.hyperparameters['hidden_layer_actor']
         self.hidden_layer_actor_param = self.hyperparameters['hidden_layer_actor_param']
-
-        # Randomization is executed in Base_Agent with self.set_random_seeds(random_seed)
+        self.clip_grad = self.hyperparameters['clip_grad']
 
         self.actions_count = 0
+
+        self.noise = OrnsteinUhlenbeckActionNoise(self.action_parameter_size,
+                                                  mu=0., theta=0.15, sigma=0.0001)
 
         # ----  Instantiation  ----
         self.state_size = self.env_parameters['phase_num'] * self.env_parameters['pad_length'] * 2
@@ -89,7 +81,6 @@ class PDQNBaseAgent(Base_Agent):
         self.actor_target = QActor(self.state_size, self.num_actions, self.action_parameter_size,
                                    self.hidden_layer_actor).to(self.device)
         hard_update(source=self.actor, target=self.actor_target)
-        # self.actor_target = load_state_dict(self.actor_net.state_dict())
         self.actor_target.eval()
 
         self.actor_param = ParamActor(self.state_size, self.num_actions,
@@ -97,15 +88,11 @@ class PDQNBaseAgent(Base_Agent):
         self.actor_param_target = ParamActor(self.state_size, self.num_actions,
                                              self.action_parameter_size, self.hidden_layer_actor_param).to(device)
         hard_update(source=self.actor_param, target=self.actor_param_target)
-        # self.actor_param_target.load_state_dict(self.actor_param.state_dict())
         self.actor_param_target.eval()
 
-        self.loss_func = self.hyperparameters['loss_func']  # l1_smooth_loss performs better but original paper used MSE
+        self.loss_func = self.hyperparameters['loss_func']
 
-        # Original DDPG paper [Lillicrap et al. 2016] used a weight decay of 0.01 for Q (critic)
-        # but setting weight_decay=0.01 on the critic_optimiser seems to perform worse...
-        # using AMSgrad ("fixed" version of Adam, amsgrad=True) doesn't seem to help either...
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate_actor)  # TODO 这边有细节
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate_actor)  # TODO more details
         self.actor_param_optimizer = optim.Adam(self.actor_param.parameters(), lr=self.learning_rate_actor_param)
 
     def __str__(self):
@@ -118,31 +105,21 @@ class PDQNBaseAgent(Base_Agent):
                 "Tau (actor): {}\n".format(self.tau_actor) + \
                 "Tau (actor-params): {}\n".format(self.tau_actor_param) + \
                 "Batch Size: {}\n".format(self.batch_size) + \
-                "epsilon_initial: {}\n".format(self.epsilon_initial) + \
-                "epsilon_final: {}\n".format(self.epsilon_final) + \
-                "epsilon_decay: {}\n".format(self.epsilon_decay) + \
-                "loss_func: {}\n".format(self.loss_func) + \
+                "Epsilon_initial: {}\n".format(self.epsilon_initial) + \
+                "Epsilon_final: {}\n".format(self.epsilon_final) + \
+                "Epsilon_decay: {}\n".format(self.epsilon_decay) + \
+                "Loss_func: {}\n".format(self.loss_func) + \
                 "Seed: {}\n".format(self.seed)
         return desc
 
-    def set_action_parameter_passthrough_weights(self, initial_weights, initial_bias=None):  # TODO
+    def ornstein_uhlenbeck_noise(self, all_action_parameters):
         """
+        Continuous action exploration using an Ornstein-Uhlenbeck process.
 
-        :param initial_weights:
-        :param initial_bias:
+        :param all_action_parameters:
         :return:
         """
-        passthrough_layer = self.actor_param.action_parameters_passthrough_layer
-        # directly from state to actor_param
-        # [self.state_size, self.action_parameter_size]
-        assert initial_weights.shape == passthrough_layer.weight.data.size()
-        passthrough_layer.weight.data = torch.Tensor(initial_weights).float().to(self.device)
-        if initial_bias is not None:
-            passthrough_layer.bias.data = torch.Tensor(initial_bias).float().to(self.device)
-        passthrough_layer.requires_grad = False
-        passthrough_layer.weight.requires_grad = False
-        passthrough_layer.bias.requires_grad = False
-        hard_update(source=self.actor_param, target=self.actor_param_target)
+        return all_action_parameters.data.numpy() + (self.noise.sample() * self.action_parameter_range_numpy)
 
     def pick_action(self, state, train=True):
         if train:
@@ -157,7 +134,7 @@ class PDQNBaseAgent(Base_Agent):
                 # exploration
                 if random.random() < self.epsilon:
                     action = np.random.randint(self.num_actions)
-                    all_action_parameters = torch.from_numpy(np.random.uniform(self.action_parameter_min_numpy,
+                    all_action_parameters = torch.from_numpy(np.random.randint(self.action_parameter_min_numpy,
                                                                                self.action_parameter_max_numpy))
                 else:
                     Q_a = self.actor.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
@@ -165,6 +142,7 @@ class PDQNBaseAgent(Base_Agent):
                     action = np.argmax(Q_a)
 
                 all_action_parameters = all_action_parameters.cpu().data.numpy()
+                self.ornstein_uhlenbeck_noise(all_action_parameters)
                 action_parameters = all_action_parameters[action]
         else:
             with torch.no_grad():
@@ -188,35 +166,6 @@ class PDQNBaseAgent(Base_Agent):
         random_action = [np.random.randint(self.num_actions)]
         random_action_ = [np.random.randint(self.action_space.spaces[i].high) for i in range(1, self.num_actions + 1)]
         return np.concatenate((random_action, random_action_), axis=1)
-
-    def _invert_gradients(self, grad, vals, grad_type, inplace=True):
-        if grad_type == 'actions':
-            max_p = self.action_max
-            min_p = self.action_min
-            rnge = self.action_range
-        elif grad_type == 'action_parameters':
-            max_p = self.action_parameter_max
-            min_p = self.action_parameter_min
-            rnge = self.action_parameter_range
-        else:
-            raise ValueError('Unhandled grad_type: {}'.format(str(grad_type)))
-
-        max_p = max_p.cpu()
-        min_p = min_p.cpu()
-        rnge = rnge.cpu()
-        grad = grad.cpu()
-        vals = vals.cpu()
-
-        assert grad.shape == vals.shape
-
-        if not inplace:
-            grad = grad.clone()
-        with torch.no_grad():
-            index = grad > 0
-            grad[index] *= (index.float() * (max_p - min_p) / rnge)[index]
-            grad[~index] *= ((~index).float() * (vals - min_p) / rnge)[~index]
-
-        return grad
 
     def optimize_td_loss(self, memory):
         """
@@ -243,7 +192,7 @@ class PDQNBaseAgent(Base_Agent):
             pred_Q_a = self.actor_target(next_states, pred_next_action_parameters)
             Qprime = torch.max(pred_Q_a, 1, keepdim=True)[0].squeeze()
             # 首先torch.max会返回一个nametuple(val, inx)因此[0],又因为keepdim=True,所以最终的size会和input一样，除了
-            # 那个max的维度大小变为1，因此需要做一个sqeeze()的操作
+            # 那个max的维度大小变为1，因此需要做一个squeeze()的操作
 
             # compute the TD error
             target = rewards + (1 - dones) * self.gamma * Qprime
@@ -273,26 +222,59 @@ class PDQNBaseAgent(Base_Agent):
         with torch.no_grad():
             action_params = self.actor_param(states)
         action_params.requires_grad = True
-        Q_val = self.actor(states, action_params)
-        param_loss = torch.mean(torch.sum(Q_val, 1))
-        # 首先是sum部分，这和论文中是一致的，即对于所有K个动作进行加和，mean操作则是对batch_size个数据的处理，loss最后是一个float
-        self.actor.zero_grad()
-        param_loss.backward()
+        Q = self.actor(states, action_params)
+        Q_val = Q
+        Q_loss = torch.mean(torch.sum(Q_val, 1))
 
-        # TODO
-        delta_a = deepcopy(action_params.grad.data)
-        action_params = self.actor_param(Variable(states))
-        delta_a[:] = self._invert_gradients(delta_a, action_params, grad_type="action_parameters", inplace=True)
-        out = -torch.mul(delta_a, action_params)  # Multiplies input by other
-        self.actor_param.zero_grad()
-        out.backward(torch.ones(out.shape)).to(self.device)
+        # self.actor.zero_grad()
+        # Q_loss.backward()
+        # delta_a = deepcopy(action_params.grad.data)
 
+        # action_params = self.actor_param(states)
+        # delta_a[:] = self._invert_gradients(delta_a, action_params, grad_type="action_parameters", inplace=True)
+        # out = -torch.mul(delta_a, action_params)  # Multiplies input by other
+        # self.actor_param.zero_grad()
+        # out.backward(torch.ones(out.shape)).to(self.device)
+
+        self.actor_param_optimizer.zero_grad()
+        Q_loss.backward()
         if self.clip_grad > 0:
             torch.nn.utils.clip_grad_norm(self.actor_param.parameters(), self.clip_grad)
         self.actor_param_optimizer.step()
 
         soft_update(source=self.actor, target=self.actor_target, tau=self.tau_actor)
         soft_update(source=self.actor_param, target=self.actor_param_target, tau=self.tau_actor_param)
+
+    def _invert_gradients(self, grad, vals, grad_type, inplace=True):
+        # 5x faster on CPU (for Soccer, slightly slower for Goal, Platform?)
+        if grad_type == "actions":
+            max_p = self.action_max
+            min_p = self.action_min
+            rnge = self.action_range
+        elif grad_type == "action_parameters":
+            max_p = self.action_parameter_max
+            min_p = self.action_parameter_min
+            rnge = self.action_parameter_range
+        else:
+            raise ValueError("Unhandled grad_type: '" + str(grad_type) + "'")
+
+        max_p = max_p.cpu()
+        min_p = min_p.cpu()
+        rnge = rnge.cpu()
+        grad = grad.cpu()
+        vals = vals.cpu()
+
+        assert grad.shape == vals.shape
+
+        if not inplace:
+            grad = grad.clone()
+        with torch.no_grad():
+            # index = grad < 0  # actually > but Adam minimises, so reversed (could also double negate the grad)
+            index = grad > 0
+            grad[index] *= (index.float() * (max_p - vals) / rnge)[index]
+            grad[~index] *= ((~index).float() * (vals - min_p) / rnge)[~index]
+
+        return grad
 
     def save_models(self, actor_path, actor_param_path):
         torch.save(self.actor.state_dict(), actor_path)
@@ -310,19 +292,3 @@ class PDQNBaseAgent(Base_Agent):
 
     def end_episode(self):
         pass
-
-    def seed(self, seed=None):
-        """
-
-        :param seed:
-        :return:
-        """
-        random.seed(seed)
-        np.random.seed(seed)
-
-        torch.manual_seed(seed)  # CPU
-        torch.cuda.manual_seed(seed)  # Present GPU
-        torch.cuda.manual_seed_all(seed)  # All GPUs
-
-        torch.backends.cudnn.deterministic = True
-        torch.backends.benchmark = False
