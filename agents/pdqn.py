@@ -245,37 +245,6 @@ class PDQNBaseAgent(Base_Agent):
         soft_update(source=self.actor, target=self.actor_target, tau=self.tau_actor)
         soft_update(source=self.actor_param, target=self.actor_param_target, tau=self.tau_actor_param)
 
-    def _invert_gradients(self, grad, vals, grad_type, inplace=True):
-        # 5x faster on CPU (for Soccer, slightly slower for Goal, Platform?)
-        if grad_type == "actions":
-            max_p = self.action_max
-            min_p = self.action_min
-            rnge = self.action_range
-        elif grad_type == "action_parameters":
-            max_p = self.action_parameter_max
-            min_p = self.action_parameter_min
-            rnge = self.action_parameter_range
-        else:
-            raise ValueError("Unhandled grad_type: '" + str(grad_type) + "'")
-
-        max_p = max_p.cpu()
-        min_p = min_p.cpu()
-        rnge = rnge.cpu()
-        grad = grad.cpu()
-        vals = vals.cpu()
-
-        assert grad.shape == vals.shape
-
-        if not inplace:
-            grad = grad.clone()
-        with torch.no_grad():
-            # index = grad < 0  # actually > but Adam minimises, so reversed (could also double negate the grad)
-            index = grad > 0
-            grad[index] *= (index.float() * (max_p - vals) / rnge)[index]
-            grad[~index] *= ((~index).float() * (vals - min_p) / rnge)[~index]
-
-        return grad
-
     def save_models(self, actor_path, actor_param_path):
         torch.save(self.actor.state_dict(), actor_path)
         torch.save(self.actor_param.state_dict(), actor_param_path)

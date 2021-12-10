@@ -18,7 +18,7 @@ def hard_update(target, source):
 
 # -------- Plot --------
 def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std_range=True,
-                                    agent_to_color_dictionary=None, standard_deviation_results=1, title=None):
+                                    agent_to_color_dictionary=None, standard_deviation_results=1):
     """
     Visualize the results for one agent.
 
@@ -52,7 +52,7 @@ def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std
 
     ax.set_facecolor('xkcd:white')
     ax.legend(loc='upper right', shadow='Ture', facecolor='inherit')
-    ax.set_title(title, fontsize=15, fontweight='bold')
+    ax.set_title(title='Training', fontsize=15, fontweight='bold')
     ax.set_ylabel('Rolling Episode Scores')
     ax.set_xlabel('Episode Number')
     for spine in ['right', 'top']:
@@ -60,7 +60,7 @@ def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std
     ax.set_xlim([0, x_vals[-1]])
 
     y_limits = get_y_limits(agent_results)
-    ax.set_ylin(y_limits)
+    ax.set_ylim(y_limits)
 
     plt.tight_layout()
 
@@ -125,6 +125,37 @@ def get_y_limits(results):
     return y_limits
 
 
+def visualize_results_per_run(agent_results, agent_name, save_freq, file_path_for_pic):
+    """
+
+    :param file_path_for_pic:
+    :param save_freq:
+    :param agent_name:
+    :param agent_results:
+    :return:
+    """
+    assert isinstance(agent_results, list), 'agent_results must be a list of lists.'
+    fig, ax = plt.subplots
+    ax.set_facecolor('xkcd:white')
+    ax.legend(loc='upper right', shadow='Ture', facecolor='inherit')
+    ax.set_title(title='Episode Scores For One Specific Run', fontsize=15, fontweight='bold')
+    ax.set_ylabel('Episode Scores')
+    ax.set_xlabel('Episode Number')
+    for spine in ['right', 'top']:
+        ax.spines[spine].set_visibl(False)
+    x_vals = list(range(len(agent_results)))
+    ax.set_xlim([0, x_vals[-1]])
+    ax.set_ylim([min(agent_results), max(agent_results)])
+    ax.plot(x_vals, agent_results, label=agent_name, color='blue')
+    plt.tight_layout()
+
+    Runtime = len(agent_results)
+    if Runtime % save_freq == 0:
+        plt.savefig(file_path_for_pic + str(Runtime) + '.jpg')
+    plt.pause(0.01)
+
+
+# -------- Optimizer --------
 class SharedAdam(torch.optim.Adam):
     """
     Shared optimizer, the parameters in the optimizer will shared in the multiprocessors.
@@ -145,6 +176,7 @@ class SharedAdam(torch.optim.Adam):
                 state['exp_avg_sq'].share_memory_()
 
 
+# ---------- Noise ----------
 class OrnsteinUhlenbeckActionNoise(object):
     """
     Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab

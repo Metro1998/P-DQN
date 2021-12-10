@@ -96,21 +96,24 @@ class Train_and_Evaluate(object):
 
                     state = next_state
 
-                total_episode_score_so_far = episode_reward
-                game_full_episodes_scores.append(total_episode_score_so_far)
+                episode_score_so_far = episode_reward
+                game_full_episodes_scores.append(episode_score_so_far)
                 game_full_episodes_rolling_scores.append(
                     np.mean(game_full_episodes_scores[-1 * self.rolling_score_window]))
 
                 print("Episode: {}, total steps:{}, episode steps:{}, scores:{}".format(
-                    i_episode, self.total_steps, episode_steps, total_episode_score_so_far))
+                    i_episode, self.total_steps, episode_steps, episode_score_so_far))
 
                 self.env.close()
-
+            file_path_for_pic = 'results/graphs/runs/runs_'
+            visualize_results_per_run(agent_results=game_full_episodes_scores,
+                                      agent_name=self.agent_name,
+                                      save_freq=self.save_freq,
+                                      file_path_for_pic=file_path_for_pic)
             rolling_scores_for_diff_runs.append(game_full_episodes_rolling_scores)
 
         visualize_overall_agent_results(agent_results=rolling_scores_for_diff_runs,
                                         agent_name=self.agent_name,
                                         show_mean_and_std_range=True,
                                         agent_to_color_dictionary=self.agent_to_color_dictionary,
-                                        standard_deviation_results=1,
-                                        title='Training Result')
+                                        standard_deviation_results=1)
