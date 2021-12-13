@@ -11,8 +11,7 @@ class Train_and_Evaluate(object):
 
     def __init__(self, config):
         # Environment
-        self.env_name = config.environment
-        self.env = gym.make(self.env_name)
+        self.env = gym.make(config.environment)
 
         # Agent
         self.agent = PDQNBaseAgent(config)
@@ -70,7 +69,7 @@ class Train_and_Evaluate(object):
                 # TODO
                 episode_reward = 0
                 episode_steps = 0
-                done = 0
+                done = False
                 state = self.env.reset()  # n_steps
                 state = state[:-1]  # The last piece of n_steps
 

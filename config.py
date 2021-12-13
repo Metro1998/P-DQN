@@ -27,6 +27,7 @@ class Config(object):
         self.simulations_num = 10
         self.rolling_score_window = 5
         self.runs_per_agent = 10
+        self.use_GPU = True
         self.agent_name = 'P-DQN'
         self.env_parameters = {
             'phase_num': 8,

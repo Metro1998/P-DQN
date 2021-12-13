@@ -5,6 +5,7 @@
 # 先实现自己的状态空间，之后的（更多丰富的接口需要去完善一下）
 
 import gym
+import os
 import numpy as np
 import sys
 import random
@@ -22,7 +23,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         We supposed that there is no concept of cycle in the signal control.Hence you may execute one specific phase
         repeatedly before the others are executed.
         When one particular phase is over, it's time to decide(choose action) which phase(DISCRETE) to execute and its
-        duration(CONTINUOUS).
+        duration(int(CONTINUOUS)).
 
         It's a RL problem with hybrid action space actually, but if you just want to train and evaluate with a
         NORMAL env, just add some confines in env or train.py.
@@ -31,9 +32,9 @@ class FreewheelingIntersectionEnv(gym.Env):
         Type: Box(400)
         # 400 = 8 * 25 * 2
         # 8 phases
-        # We only record the first 25th vehicles in each phase
+        # We only record the first 25th vehicles(fixed number) on each lane(?)
         # The distance to the stop line and speed are considered
-        # When vehicles are absent in one phase, pad it with float('inf') and 0 w.r.t position and speed.
+        # When vehicles are absent on one lane, pad it with float('inf') and 0 w.r.t position and speed.
         Num  Observation                   Min      Max
         0    Phase_0 vehicle_0 position     0       250
                             ...
@@ -55,14 +56,14 @@ class FreewheelingIntersectionEnv(gym.Env):
     -------------- PLUS ----------
         Type: Box(8)
         Num   Action              Min      Max
-        0     NS_straight          5        20
-        1     EW_straight          5        20
-        2     NS_left              5        20
-        3     EW_left              5        20
-        4     N_straight_left      5        20
-        5     E_straight_left      5        20
-        6     S_straight_left      5        20
-        7     W_straight_left      5        20
+        0     NS_straight          10       25
+        1     EW_straight          10       25
+        2     NS_left              10       25
+        3     EW_left              10       25
+        4     N_straight_left      10       25
+        5     E_straight_left      10       25
+        6     S_straight_left      10       25
+        7     W_straight_left      10       25
 
     Reward:
         A combination between vehicle's loss time and queue in one specific phase.
@@ -74,56 +75,56 @@ class FreewheelingIntersectionEnv(gym.Env):
         Episode length is greater than SIMULATION_STEPS(3600 in default, for one hour).
     """
 
-    def __init__(self, config):
-        self.env_parameters = config.env_parameters
-        self.phase_num = self.env_parameters['phase_num']
-        self.action_low = self.env_parameters['action_low']
-        self.action_high = self.env_parameters['action_high']
+    def __init__(self):
+        self.phase_num = 8
+        self.action_low = np.array([10] * self.phase_num, dtype=np.float32)
+        self.action_high = np.array([25] * self.phase_num, dtype=np.float32)
 
         # for every vehicle type the maximum recorded number is 25 w.r.t its position(padded with 'inf') and speed
         # (padded with '0')
-        self.pad_length = self.env_parameters['pad_length']
+        self.pad_length = 25
 
-        self.lane_length_high = self.env_parameters['lane_length_high']
-        self.speed_high = self.env_parameters['speed_high']
+        self.lane_length_high = 250.
+        self.speed_high = 100.
 
         # the edgeID is defined in FW_Inter.edg.xml
         # as you may have different definition in your own .edg.xml, change it in config.
-        self.edgeIDs = self.env_parameters['edge_ids']
+        self.edgeIDs = ['north_in', 'east_in', 'south_in', 'west_in']
 
         # vehicle_types will help to filter the vehicles on the same edge but have different direction.
-        self.vehicle_types = self.env_parameters['vehicle_types']
+        self.vehicle_types = ['NS_through', 'NE_left',
+                              'EW_through', 'ES_left',
+                              'SN_through', 'SW_left',
+                              'WE_through', 'WN_left']
 
-        self.yellow = config.env_parameters['yellow']
-        self.lane_length = config.env_parameters['lane_length']
-        self.simulation_steps = config.env_parameters['simulation_steps']
+        self.yellow = 3
+        self.lane_length = 234.12
+        self.simulation_steps = 3600
 
         # when step() we will save last 'self.N_STEPS' states for state representation
-        self.n_steps = config.env_parameters['n_steps']
+        self.n_steps = 5
 
-        self.alpha = config.env_parameters['alpha']
+        self.alpha = 0.2
         self.episode_steps = 0
-        self.reward_last_phase = []
+        self.reward_previous = []
         self.action_old = []
+        self.states = []
 
-        action_low = np.array([self.action_low] * self.phase_num)
-        action_high = np.array([self.action_high] * self.phase_num)
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.phase_num),
-            spaces.Tuple(
-                tuple(spaces.Box(action_low[i], action_high[i], dtype=np.float32) for i in range(self.phase_num))
-            )
+            spaces.Box(low=self.action_low, high=self.action_high, dtype=np.float32)
         ))
 
         observation_low = np.array([0.] * self.phase_num * 2 * self.pad_length)
         observation_high = np.concatenate((np.array([self.lane_length_high] * self.pad_length),
-                                           np.array([self.speed_high] * self.pad_length)), axis=1)
+                                           np.array([self.speed_high] * self.pad_length)), axis=None)
         observation_high = np.tile(observation_high, self.phase_num)
         self.observation_space = spaces.Box(
             low=observation_low,
-            high=observation_high
+            high=observation_high,
+            dtype=np.float32
         )
-        seed = config.seed
+        seed = 1
         self.seed(seed)
 
         # declare the path to sumo/tools
@@ -136,41 +137,53 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         :return: dic, speed and position of different vehicle types
         """
+        os.getcwd()
         path = '../envs/sumo/road_network/FW_Inter.sumocfg'
 
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
         self.episode_steps = 0
-        raw = self.retrieve()
-        state_one_step = self.compute_state_one_step(raw)
-        self.reward_last_phase = self.compute_reward(raw)
+        raw_info = self.retrieve_raw_info()
+        state = self.retrieve_state(raw_info)
+        self.reward_previous = self.retrieve_reward(raw_info)
 
-        return np.array(state_one_step)
+        return np.array(state, dtype=np.float32)
 
-    def step(self, action: list):
+    def sumo_step(self):
+        """
+        SUMO steps.
+
+        :return:
+        """
+        traci.simulationStep()
+        self.episode_steps += 1
+        raw_info = self.retrieve_raw_info()
+        state = self.retrieve_state(raw_info)
+        self.states.append(state)
+
+    def step(self, action):
         """
 
         Note: the sumo(or traci) doesn't need an action every step until one specific phase is over,
               but the abstract method 'step()' needs as you can see.
               Thus only a new action is input will we change the traffic light state, otherwise just do
-              traci.simulationStep()
+              traci.simulationStep() consecutively.
 
 
-        :param action:array, e.g. array([4, 5, 6, 8, 6, 10, 12, 16, 9]),
+        :param action:list, e.g. [4, 12, 11, 13, 15, 10, 12, 16, 23],
                              the first element is the phase next period,
-                             and the latter ones are duration list w.r.t all phases.
-        :return: next_state, reward, done, _
+                             and the latter ones are duration w.r.t all phases.
+        :return: next_state, reward, done, info
         """
 
         phase_next = action[0]
-        phase_duration = action[phase_next + 1]
-        reward = []
+        phase_duration = action[1][phase_next]
+        self.states = []
 
         # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml We achieve hybrid action space
         # control through switch its phase and steps(controlled by self.YELLOW and GREEN(phase_duration)).
         # There is possibility that phase next period is same with the phase right now
 
-        states = []
         if not self.action_old:
             pass
         else:
@@ -179,43 +192,33 @@ class FreewheelingIntersectionEnv(gym.Env):
                 pass
             else:
                 # When phase is changed, YELLOW PHASE is executed.
-                traci.trafficlight.setPhase('SmartWolfie', action_old[1 + phase_next])
+                traci.trafficlight.setPhase('SmartWolfie', self.action_old[1][phase_next])
                 for i in range(self.yellow):
-                    traci.simulationStep()
-                    self.episode_steps += 1
-                    raw = self.retrieve()
-                    state_one_step = self.compute_state_one_step(raw)
-                    states.append(state_one_step)
+                    self.sumo_step()
 
         traci.trafficlight.setPhase('SmartWolfie', phase_next)
-        for i in range(phase_duration):
-            traci.simulationStep()
-            self.episode_steps += 1
-            raw = self.retrieve()
-            state_one_step = self.compute_state_one_step(raw)
-            states.append(state_one_step)
+        for i in range(int(np.ceil(phase_duration))):
+            self.sumo_step()
 
-        states = np.array(states, dtype=float)
+        # ---- states ----
+        states = np.array(self.states, dtype=float)
 
-        raw = self.retrieve()
-        reward_present_phase = self.compute_reward(raw)
+        # ---- reward ----
+        raw_info = self.retrieve_raw_info()
+        reward_so_far = self.retrieve_reward(raw_info)
+        reward = reward_so_far[0] - self.reward_previous[0]
 
-        reward.append(reward_present_phase[0] - self.reward_last_phase[0])
-        for i in range(3):
-            reward.append(reward_present_phase[i + 1])
-
-        reward = np.array(reward, dtype=float)
-        self.reward_last_phase = copy.deepcopy(reward_present_phase)
-
+        self.reward_previous = copy.deepcopy(reward_so_far)
         self.action_old = copy.deepcopy(action)
-        if self.episode_steps > self.simulation_steps:
-            done = 1
-        else:
-            done = 0
-        info = {}
-        return states, reward, done, info
 
-    def retrieve(self):
+        if self.episode_steps > self.simulation_steps:
+            done = True
+        else:
+            done = False
+        info = {}
+        return states[-1], reward, done, info
+
+    def retrieve_raw_info(self):
         """
 
         :return:
@@ -234,7 +237,7 @@ class FreewheelingIntersectionEnv(gym.Env):
                     vehicles_on_specific_edge.append(str(vehicleID[i]))
 
                 for ID in vehicles_on_specific_edge:
-                    tem = [None] * 5
+                    tem = [0.] * 5
                     traci.vehicle.subscribe(ID, (tc.VAR_TYPE, tc.VAR_LANEPOSITION, tc.VAR_SPEED,
                                                  tc.VAR_ACCUMULATED_WAITING_TIME, tc.VAR_TIMELOSS))
                     for v in traci.vehicle.getSubscriptionResults(ID).values():
@@ -252,33 +255,37 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         return vehicles_raw_info
 
-    def compute_state_one_step(self, raw):
+    def retrieve_state(self, raw_info):
         """
 
         :return:
         """
-        state_one_step = []
-        raw = list(raw.items())
-        for vehicles_specific_type in raw:
-            position_specific_type = []
-            speed_specific_type = []
+        vehicle_types_so_far = []
+        state = np.array([])
 
-            for vehicle in vehicles_specific_type[1]:
-                position_specific_type.append(vehicle[1])
-                speed_specific_type.append(vehicle[2])
-            position_specific_type = sum(position_specific_type, [])
-            speed_specific_type = sum(speed_specific_type, [])
-            np.pad(position_specific_type, (0, self.pad_length - len(position_specific_type)), 'constant',
-                   constant_values=(0, float('inf')))
-            np.pad(speed_specific_type, (0, self.lane_length - len(speed_specific_type)), 'constant',
-                   constant_values=(0, 0))
-            state_one_step.append(position_specific_type)
-            state_one_step.append(speed_specific_type)
-        state_one_step = sum(state_one_step, [])
+        raw = list(raw_info.items())
+        for type in raw:
+            vehicle_types_so_far.append(type[0])
+        for vehicle_type in self.vehicle_types:
+            position = []
+            speed = []
+            if vehicle_type in vehicle_types_so_far:
+                for vehicle in raw_info[vehicle_type]:
+                    position.append(vehicle[1])
+                    speed.append(vehicle[2])
+                position = sum(position, [])
+                speed = sum(speed, [])
+            position = np.pad(position, (0, self.pad_length - len(position)), 'constant',
+                              constant_values=(0, 250))
+            speed = np.pad(speed, (0, self.pad_length - len(speed)), 'constant',
+                           constant_values=(0, 0))
+            state = np.concatenate((state, position), axis=0)
+            state = np.concatenate((state, speed), axis=0)
+        state = state.flatten()
 
-        return state_one_step
+        return state
 
-    def compute_reward(self, raw):
+    def retrieve_reward(self, raw):
         """
         Temporarily, we just use 'queue' and 'time loss' to design the reward.
         Alpha is a trade off between the influence of 'queue' and 'time loss'.
@@ -288,7 +295,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         loss_time = []
         accumulated_waiting_time = []
         queue = []
-        reward = [0] * 4
+        reward = np.array([0.] * 4)
         raw = list(raw.items())
         for vehicles_specific_type in raw:
             loss_time_specific_type = []
@@ -321,3 +328,10 @@ class FreewheelingIntersectionEnv(gym.Env):
         :return:
         """
         traci.close()
+
+
+if __name__ == "__main__":
+    env = FreewheelingIntersectionEnv()
+    from stable_baselines3.common.env_checker import check_env
+
+    check_env(env)

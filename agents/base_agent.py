@@ -28,14 +28,9 @@ class Base_Agent(object):
         self.file_to_save_data_results = config.file_to_save_data_results
         self.file_to_save_results_graph = config.file_to_save_results_graph
         self.runs_per_agent = config.runs_per_agent
-        self.visualise_overall_results = config.visualise_overall_results
-        self.visualise_individual_results = config.visualise_individual_results
-        self.overwrite_existing_results_file = config.overwrite_existing_results_file
         self.sava_model = config.save_model
         self.standard_deviation_results = config.standard_deviation_results
         self.randomise_random_seed = config.randomise_random_seed
-        self.show_solution_score = config.show_solution_score
-        self.debug_mode = config.debug_mode
 
     def set_random_seeds(self, random_seed):
         """

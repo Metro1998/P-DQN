@@ -8,7 +8,7 @@ config.seed = 1
 config.train = True
 config.evaluate = False
 config.evaluate_internal = 5
-config.environment = 'FreewheelingIntersection_v0'
+config.environment = 'FreewheelingIntersection-v0'
 config.num_episodes_to_run = 100
 config.file_to_save_data_results = 'results/data_results'
 config.file_to_save_results_graph = 'results/graphs'
@@ -22,6 +22,7 @@ config.simulations_num = 10
 config.rolling_score_window = 5
 config.runs_per_agent = 10
 config.agent_name = 'P-DQN'
+config.use_GPU = True
 
 
 config.env_parameters = {

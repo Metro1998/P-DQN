@@ -41,15 +41,9 @@ class PDQNBaseAgent(Base_Agent):
         self.action_min = - self.action_max.detach()  # remove gradient
         self.action_range = (self.action_max - self.action_min).detach()  # 是否要进行归一化
 
-        self.action_parameter_max_numpy = np.concatenate([self.action_space.spaces[i].high + 1
-                                                          for i in range(1, self.num_actions + 1)]).ravel()
-        self.action_parameter_min_numpy = np.concatenate([self.action_space.spaces[i].low
-                                                          for i in range(1, self.num_actions + 1)]).ravel()
+        self.action_parameter_min_numpy = np.array([10] * self.num_actions)
+        self.action_parameter_max_numpy = np.array([25] * self.num_actions)
         self.action_parameter_range_numpy = (self.action_parameter_max_numpy - self.action_parameter_min_numpy)
-
-        self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(self.device)
-        self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(self.device)
-        self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(self.device)
 
         self.epsilon = self.hyperparameters['epsilon_initial']
         self.epsilon_initial = self.hyperparameters['epsilon_initial']
