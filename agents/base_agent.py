@@ -25,10 +25,8 @@ class Base_Agent(object):
         self.hyperparameters = config.hyperparameters
         self.use_GPU = config.use_GPU
 
-        self.file_to_save_data_results = config.file_to_save_data_results
-        self.file_to_save_results_graph = config.file_to_save_results_graph
+        self.file_to_save = config.file_to_save
         self.runs_per_agent = config.runs_per_agent
-        self.sava_model = config.save_model
         self.standard_deviation_results = config.standard_deviation_results
         self.randomise_random_seed = config.randomise_random_seed
 

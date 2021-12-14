@@ -14,13 +14,9 @@ class Config(object):
         self.evaluate_internal = 5
         self.environment = 'FreewheelingIntersection_v0'
         self.num_episodes_to_run = None
-        self.file_to_save_data_results = None
-        self.file_to_save_results_graph = None
-        self.file_to_save_actor = None
-        self.file_to_save_actor_param = None
+        self.file_to_save = None
         self.hyperparameters = None
         self.env_parameters = None
-        self.save_model = False
         self.standard_deviation_results = 1.0
         self.randomise_random_seed = True
         self.save_freq = 5

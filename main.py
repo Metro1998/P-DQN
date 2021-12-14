@@ -10,10 +10,7 @@ config.evaluate = False
 config.evaluate_internal = 5
 config.environment = 'FreewheelingIntersection-v0'
 config.num_episodes_to_run = 100
-config.file_to_save_data_results = 'results/data_results'
-config.file_to_save_results_graph = 'results/graphs'
-config.file_to_save_actor = 'results/actor'
-config.file_to_save_actor_param = 'results/actor_param'
+config.file_to_save = 'results/'
 config.save_model = True
 config.standard_deviation_results = 1.0
 config.randomise_random_seed = True
@@ -29,7 +26,7 @@ config.env_parameters = {
     'phase_num': 8,
     'action_low': 5.,
     'action_high': 20.,
-    'pad_length': 25.,
+    'pad_length': 25,
     'lane_length_high': 250.,
     'speed_high': 100.,
     'edge_ids': ['north_in', 'east_in', 'south_in', 'west_in'],
@@ -68,6 +65,6 @@ config.hyperparameters = {
 
 if __name__ == "__main__":
     trainer = Train_and_Evaluate(config=config)
-    trainer.train()
+    trainer.train_agent()
 
 

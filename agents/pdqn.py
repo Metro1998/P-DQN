@@ -6,6 +6,8 @@
 """
 
 import math
+
+import numpy as np
 import torch.optim as optim
 import random
 from agents.base_agent import Base_Agent
@@ -37,10 +39,6 @@ class PDQNBaseAgent(Base_Agent):
         # In this case(FreewheelingIntersection), every continuous action just has one dimension!
 
         self.action_parameter_size = self.num_actions
-        self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(self.device)
-        self.action_min = - self.action_max.detach()  # remove gradient
-        self.action_range = (self.action_max - self.action_min).detach()  # 是否要进行归一化
-
         self.action_parameter_min_numpy = np.array([10] * self.num_actions)
         self.action_parameter_max_numpy = np.array([25] * self.num_actions)
         self.action_parameter_range_numpy = (self.action_parameter_max_numpy - self.action_parameter_min_numpy)
@@ -70,19 +68,21 @@ class PDQNBaseAgent(Base_Agent):
 
         # ----  Instantiation  ----
         self.state_size = self.env_parameters['phase_num'] * self.env_parameters['pad_length'] * 2
-        self.actor = QActor(self.state_size, self.num_actions, self.action_parameter_size
-                            , self.hidden_layer_actor).to(self.device)
+        self.actor = QActor(self.state_size, self.num_actions, self.action_parameter_size,
+                            self.hidden_layer_actor).to(self.device)
         self.actor_target = QActor(self.state_size, self.num_actions, self.action_parameter_size,
                                    self.hidden_layer_actor).to(self.device)
         hard_update(source=self.actor, target=self.actor_target)
         self.actor_target.eval()
+        print(self.actor)
 
         self.actor_param = ParamActor(self.state_size, self.num_actions,
-                                      self.action_parameter_size, self.hidden_layer_actor_param).to(device)
+                                      self.action_parameter_size, self.hidden_layer_actor_param).to(self.device)
         self.actor_param_target = ParamActor(self.state_size, self.num_actions,
-                                             self.action_parameter_size, self.hidden_layer_actor_param).to(device)
+                                             self.action_parameter_size, self.hidden_layer_actor_param).to(self.device)
         hard_update(source=self.actor_param, target=self.actor_param_target)
         self.actor_param_target.eval()
+        print(self.actor_param)
 
         self.loss_func = self.hyperparameters['loss_func']
 
@@ -157,9 +157,10 @@ class PDQNBaseAgent(Base_Agent):
 
         :return:
         """
-        random_action = [np.random.randint(self.num_actions)]
-        random_action_ = [np.random.randint(self.action_space.spaces[i].high) for i in range(1, self.num_actions + 1)]
-        return np.concatenate((random_action, random_action_), axis=1)
+        random_phase = np.random.randint(self.num_actions)
+        random_duration = np.random.randint(low=10, high=26, size=self.num_actions)
+
+        return random_phase, random_duration.tolist()
 
     def optimize_td_loss(self, memory):
         """
@@ -169,16 +170,15 @@ class PDQNBaseAgent(Base_Agent):
         """
         if len(memory) < self.batch_size:
             return
-        states, actions, rewards, next_states, dones = memory.sample(self.batch_size)
+        states, actions, all_action_params, rewards, next_states, dones = memory.sample(self.batch_size)
 
-        states = torch.from_numpy(states).to(self.device)
-        actions_combined = torch.from_numpy(actions).to(self.device)  # make sure to separate actions and parameters
-        actions = actions_combined[:, 0].long()  # int64
-        action_parameters = actions_combined[:, 1:]
-        rewards = torch.from_numpy(rewards).to(self.device).squeeze()
+        states = torch.FloatTensor(states).to(self.device)
+        actions = torch.LongTensor(actions).to(self.device).squeeze()
+        all_action_params = torch.FloatTensor(all_action_params).to(self.device).squeeze()
+        rewards = torch.FloatTensor(rewards).to(self.device).squeeze()
         # 这边多嘴一句，squeeze()是一个降维的作用，最后为[batch_size]
-        next_states = torch.from_numpy(next_states).to(self.device)
-        dones = torch.from_numpy(dones).to(self.device).squeeze()
+        next_states = torch.FloatTensor(next_states).to(self.device)
+        dones = torch.FloatTensor(dones).to(self.device).squeeze()
 
         # ----------------------------- optimize Q-network ------------------------------------
         with torch.no_grad():
@@ -192,7 +192,7 @@ class PDQNBaseAgent(Base_Agent):
             target = rewards + (1 - dones) * self.gamma * Qprime
 
         # compute current Q-values using policy network
-        q_values = self.actor(states, action_parameters)
+        q_values = self.actor(states, all_action_params)
         y_predicted = q_values.gather(1, actions.view(-1, 1)).squeeze()
         # 这边很重要
         # 假设q_values = tensor([[1.1, 1.3],

@@ -85,7 +85,7 @@ class ParamActor(nn.Module):
         x = state
         num_hidden_layers = len(self.layers)
         for i in range(num_hidden_layers):
-            F.relu(self.layers[i](x))
+            x = F.relu(self.layers[i](x))
         action_params = self.action_parameters_output_layer(x)
         action_params += self.action_parameters_passthrough_layer(state)
 

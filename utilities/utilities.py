@@ -18,10 +18,12 @@ def hard_update(target, source):
 
 # -------- Plot --------
 def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std_range=True,
-                                    agent_to_color_dictionary=None, standard_deviation_results=1):
+                                    agent_to_color_dictionary=None, standard_deviation_results=1,
+                                    file_path_for_pic=None):
     """
     Visualize the results for one agent.
 
+    :param file_path_for_pic:
     :param title:
     :param standard_deviation_results:
     :param agent_to_color_dictionary:
@@ -63,6 +65,7 @@ def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std
     ax.set_ylim(y_limits)
 
     plt.tight_layout()
+    plt.savefig(file_path_for_pic)
 
 
 def get_mean_and_standard_deviation_difference(results, standard_deviation_results):
@@ -151,7 +154,7 @@ def visualize_results_per_run(agent_results, agent_name, save_freq, file_path_fo
 
     Runtime = len(agent_results)
     if Runtime % save_freq == 0:
-        plt.savefig(file_path_for_pic + str(Runtime) + '.jpg')
+        plt.savefig(file_path_for_pic)
     plt.pause(0.01)
 
 

@@ -39,8 +39,8 @@
     <route id="SN" edges="south_in north_out" />
     <route id="SW" edges="south_in west_out" />
 
-    <flow id="NE_0_600" begin="0" end="600" probability="0.2" route="NE" type="NE_left"/>
-    <flow id="NS_0_600" begin="0" end="600" probability="0.15" route="NS" type="NS_through"/>
+    <flow id="NE_0_600" begin="0" end="600" probability="0.12" route="NE" type="NE_left"/>
+    <flow id="NS_0_600" begin="0" end="600" probability="0.05" route="NS" type="NS_through"/>
     <flow id="NW_0_600" begin="0" end="600" probability="0.1" route="NW" type="NW_right"/>
     <flow id="ES_0_600" begin="0" end="600" probability="0.3" route="ES" type="ES_left"/>
     <flow id="EW_0_600" begin="0" end="600" probability="0.1" route="EW" type="EW_through"/>
@@ -48,9 +48,9 @@
     <flow id="SW_0_600" begin="0" end="600" probability="0.1" route="SW" type="SW_left"/>
     <flow id="SN_0_600" begin="0" end="600" probability="0.18" route="SN" type="SN_through"/>
     <flow id="SE_0_600" begin="0" end="600" probability="0.13" route="SE" type="SE_right"/>
-    <flow id="WN_0_600" begin="0" end="600" probability="0.25" route="WN" type="WN_left"/>
+    <flow id="WN_0_600" begin="0" end="600" probability="0.15" route="WN" type="WN_left"/>
     <flow id="WE_0_600" begin="0" end="600" probability="0.2" route="WE" type="WE_through"/>
-    <flow id="WS_0_600" begin="0" end="600" probability="0.16" route="WS" type="WS_right"/>
+    <flow id="WS_0_600" begin="0" end="600" probability="0.06" route="WS" type="WS_right"/>
 
     <flow id="NE_601_1200" begin="601" end="1200" probability="0.25" route="NE" type="NE_left"/>
     <flow id="NS_601_1200" begin="601" end="1200" probability="0.17" route="NS" type="NS_through"/>
