@@ -40,80 +40,80 @@
     <route id="SW" edges="south_in west_out" />
 
     <flow id="NE_0_600" begin="0" end="600" probability="0.12" route="NE" type="NE_left"/>
-    <flow id="NS_0_600" begin="0" end="600" probability="0.05" route="NS" type="NS_through"/>
+    <flow id="NS_0_600" begin="0" end="600" probability="0.15" route="NS" type="NS_through"/>
     <flow id="NW_0_600" begin="0" end="600" probability="0.1" route="NW" type="NW_right"/>
-    <flow id="ES_0_600" begin="0" end="600" probability="0.3" route="ES" type="ES_left"/>
+    <flow id="ES_0_600" begin="0" end="600" probability="0.13" route="ES" type="ES_left"/>
     <flow id="EW_0_600" begin="0" end="600" probability="0.1" route="EW" type="EW_through"/>
     <flow id="EN_0_600" begin="0" end="600" probability="0.15" route="EN" type="EN_right"/>
     <flow id="SW_0_600" begin="0" end="600" probability="0.1" route="SW" type="SW_left"/>
-    <flow id="SN_0_600" begin="0" end="600" probability="0.18" route="SN" type="SN_through"/>
+    <flow id="SN_0_600" begin="0" end="600" probability="0.08" route="SN" type="SN_through"/>
     <flow id="SE_0_600" begin="0" end="600" probability="0.13" route="SE" type="SE_right"/>
     <flow id="WN_0_600" begin="0" end="600" probability="0.15" route="WN" type="WN_left"/>
-    <flow id="WE_0_600" begin="0" end="600" probability="0.2" route="WE" type="WE_through"/>
-    <flow id="WS_0_600" begin="0" end="600" probability="0.06" route="WS" type="WS_right"/>
+    <flow id="WE_0_600" begin="0" end="600" probability="0.12" route="WE" type="WE_through"/>
+    <flow id="WS_0_600" begin="0" end="600" probability="0.26" route="WS" type="WS_right"/>
 
-    <flow id="NE_601_1200" begin="601" end="1200" probability="0.25" route="NE" type="NE_left"/>
-    <flow id="NS_601_1200" begin="601" end="1200" probability="0.17" route="NS" type="NS_through"/>
+    <flow id="NE_601_1200" begin="601" end="1200" probability="0.15" route="NE" type="NE_left"/>
+    <flow id="NS_601_1200" begin="601" end="1200" probability="0.07" route="NS" type="NS_through"/>
     <flow id="NW_601_1200" begin="601" end="1200" probability="0.12" route="NW" type="NW_right"/>
     <flow id="ES_601_1200" begin="601" end="1200" probability="0.12" route="ES" type="ES_left"/>
-    <flow id="EW_601_1200" begin="601" end="1200" probability="0.25" route="EW" type="EW_through"/>
-    <flow id="EN_601_1200" begin="601" end="1200" probability="0.15" route="EN" type="EN_right"/>
-    <flow id="SW_601_1200" begin="601" end="1200" probability="0.1" route="SW" type="SW_left"/>
+    <flow id="EW_601_1200" begin="601" end="1200" probability="0.15" route="EW" type="EW_through"/>
+    <flow id="EN_601_1200" begin="601" end="1200" probability="0.05" route="EN" type="EN_right"/>
+    <flow id="SW_601_1200" begin="601" end="1200" probability="0.20" route="SW" type="SW_left"/>
     <flow id="SN_601_1200" begin="601" end="1200" probability="0.09" route="SN" type="SN_through"/>
     <flow id="SE_601_1200" begin="601" end="1200" probability="0.08" route="SE" type="SE_right"/>
     <flow id="WN_601_1200" begin="601" end="1200" probability="0.12" route="WN" type="WN_left"/>
     <flow id="WE_601_1200" begin="601" end="1200" probability="0.14" route="WE" type="WE_through"/>
-    <flow id="WS_601_1200" begin="601" end="1200" probability="0.16" route="WS" type="WS_right"/>
+    <flow id="WS_601_1200" begin="601" end="1200" probability="0.06" route="WS" type="WS_right"/>
 
     <flow id="NE_1201_1800" begin="1201" end="1800" probability="0.09" route="NE" type="NE_left"/>
     <flow id="NS_1201_1800" begin="1201" end="1800" probability="0.12" route="NS" type="NS_through"/>
-    <flow id="NW_1201_1800" begin="1201" end="1800" probability="0.21" route="NW" type="NW_right"/>
-    <flow id="ES_1201_1800" begin="1201" end="1800" probability="0.25" route="ES" type="ES_left"/>
+    <flow id="NW_1201_1800" begin="1201" end="1800" probability="0.11" route="NW" type="NW_right"/>
+    <flow id="ES_1201_1800" begin="1201" end="1800" probability="0.05" route="ES" type="ES_left"/>
     <flow id="EW_1201_1800" begin="1201" end="1800" probability="0.12" route="EW" type="EW_through"/>
-    <flow id="EN_1201_1800" begin="1201" end="1800" probability="0.15" route="EN" type="EN_right"/>
-    <flow id="SW_1201_1800" begin="1201" end="1800" probability="0.19" route="SW" type="SW_left"/>
-    <flow id="SN_1201_1800" begin="1201" end="1800" probability="0.18" route="SN" type="SN_through"/>
+    <flow id="EN_1201_1800" begin="1201" end="1800" probability="0.25" route="EN" type="EN_right"/>
+    <flow id="SW_1201_1800" begin="1201" end="1800" probability="0.09" route="SW" type="SW_left"/>
+    <flow id="SN_1201_1800" begin="1201" end="1800" probability="0.08" route="SN" type="SN_through"/>
     <flow id="SE_1201_1800" begin="1201" end="1800" probability="0.13" route="SE" type="SE_right"/>
     <flow id="WN_1201_1800" begin="1201" end="1800" probability="0.03" route="WN" type="WN_left"/>
     <flow id="WE_1201_1800" begin="1201" end="1800" probability="0.12" route="WE" type="WE_through"/>
-    <flow id="WS_1201_1800" begin="1201" end="1800" probability="0.16" route="WS" type="WS_right"/>
+    <flow id="WS_1201_1800" begin="1201" end="1800" probability="0.06" route="WS" type="WS_right"/>
 
-    <flow id="NE_1801_2400" begin="1801" end="2400" probability="0.29" route="NE" type="NE_left"/>
-    <flow id="NS_1801_2400" begin="1801" end="2400" probability="0.21" route="NS" type="NS_through"/>
+    <flow id="NE_1801_2400" begin="1801" end="2400" probability="0.19" route="NE" type="NE_left"/>
+    <flow id="NS_1801_2400" begin="1801" end="2400" probability="0.11" route="NS" type="NS_through"/>
     <flow id="NW_1801_2400" begin="1801" end="2400" probability="0.1" route="NW" type="NW_right"/>
     <flow id="ES_1801_2400" begin="1801" end="2400" probability="0.07" route="ES" type="ES_left"/>
     <flow id="EW_1801_2400" begin="1801" end="2400" probability="0.08" route="EW" type="EW_through"/>
     <flow id="EN_1801_2400" begin="1801" end="2400" probability="0.15" route="EN" type="EN_right"/>
     <flow id="SW_1801_2400" begin="1801" end="2400" probability="0.11" route="SW" type="SW_left"/>
     <flow id="SN_1801_2400" begin="1801" end="2400" probability="0.12" route="SN" type="SN_through"/>
-    <flow id="SE_1801_2400" begin="1801" end="2400" probability="0.13" route="SE" type="SE_right"/>
-    <flow id="WN_1801_2400" begin="1801" end="2400" probability="0.06" route="WN" type="WN_left"/>
+    <flow id="SE_1801_2400" begin="1801" end="2400" probability="0.03" route="SE" type="SE_right"/>
+    <flow id="WN_1801_2400" begin="1801" end="2400" probability="0.26" route="WN" type="WN_left"/>
     <flow id="WE_1801_2400" begin="1801" end="2400" probability="0.12" route="WE" type="WE_through"/>
-    <flow id="WS_1801_2400" begin="1801" end="2400" probability="0.16" route="WS" type="WS_right"/>
+    <flow id="WS_1801_2400" begin="1801" end="2400" probability="0.06" route="WS" type="WS_right"/>
 
     <flow id="NE_2401_3000" begin="2401" end="3000" probability="0.10" route="NE" type="NE_left"/>
-    <flow id="NS_2401_3000" begin="2401" end="3000" probability="0.15" route="NS" type="NS_through"/>
+    <flow id="NS_2401_3000" begin="2401" end="3000" probability="0.05" route="NS" type="NS_through"/>
     <flow id="NW_2401_3000" begin="2401" end="3000" probability="0.1" route="NW" type="NW_right"/>
     <flow id="ES_2401_3000" begin="2401" end="3000" probability="0.04" route="ES" type="ES_left"/>
     <flow id="EW_2401_3000" begin="2401" end="3000" probability="0.07" route="EW" type="EW_through"/>
-    <flow id="EN_2401_3000" begin="2401" end="3000" probability="0.15" route="EN" type="EN_right"/>
+    <flow id="EN_2401_3000" begin="2401" end="3000" probability="0.05" route="EN" type="EN_right"/>
     <flow id="SW_2401_3000" begin="2401" end="3000" probability="0.12" route="SW" type="SW_left"/>
     <flow id="SN_2401_3000" begin="2401" end="3000" probability="0.11" route="SN" type="SN_through"/>
     <flow id="SE_2401_3000" begin="2401" end="3000" probability="0.13" route="SE" type="SE_right"/>
-    <flow id="WN_2401_3000" begin="2401" end="3000" probability="0.26" route="WN" type="WN_left"/>
-    <flow id="WE_2401_3000" begin="2401" end="3000" probability="0.21" route="WE" type="WE_through"/>
-    <flow id="WS_2401_3000" begin="2401" end="3000" probability="0.16" route="WS" type="WS_right"/>
+    <flow id="WN_2401_3000" begin="2401" end="3000" probability="0.06" route="WN" type="WN_left"/>
+    <flow id="WE_2401_3000" begin="2401" end="3000" probability="0.11" route="WE" type="WE_through"/>
+    <flow id="WS_2401_3000" begin="2401" end="3000" probability="0.06" route="WS" type="WS_right"/>
 
     <flow id="NE_3001_3600" begin="3001" end="3600" probability="0.12" route="NE" type="NE_left"/>
-    <flow id="NS_3001_3600" begin="3001" end="3600" probability="0.18" route="NS" type="NS_through"/>
+    <flow id="NS_3001_3600" begin="3001" end="3600" probability="0.08" route="NS" type="NS_through"/>
     <flow id="NW_3001_3600" begin="3001" end="3600" probability="0.1" route="NW" type="NW_right"/>
-    <flow id="ES_3001_3600" begin="3001" end="3600" probability="0.26" route="ES" type="ES_left"/>
-    <flow id="EW_3001_3600" begin="3001" end="3600" probability="0.21" route="EW" type="EW_through"/>
-    <flow id="EN_3001_3600" begin="3001" end="3600" probability="0.15" route="EN" type="EN_right"/>
+    <flow id="ES_3001_3600" begin="3001" end="3600" probability="0.06" route="ES" type="ES_left"/>
+    <flow id="EW_3001_3600" begin="3001" end="3600" probability="0.11" route="EW" type="EW_through"/>
+    <flow id="EN_3001_3600" begin="3001" end="3600" probability="0.05" route="EN" type="EN_right"/>
     <flow id="SW_3001_3600" begin="3001" end="3600" probability="0.12" route="SW" type="SW_left"/>
-    <flow id="SN_3001_3600" begin="3001" end="3600" probability="0.18" route="SN" type="SN_through"/>
-    <flow id="SE_3001_3600" begin="3001" end="3600" probability="0.13" route="SE" type="SE_right"/>
+    <flow id="SN_3001_3600" begin="3001" end="3600" probability="0.08" route="SN" type="SN_through"/>
+    <flow id="SE_3001_3600" begin="3001" end="3600" probability="0.03" route="SE" type="SE_right"/>
     <flow id="WN_3001_3600" begin="3001" end="3600" probability="0.07" route="WN" type="WN_left"/>
     <flow id="WE_3001_3600" begin="3001" end="3600" probability="0.06" route="WE" type="WE_through"/>
-    <flow id="WS_3001_3600" begin="3001" end="3600" probability="0.16" route="WS" type="WS_right"/>
+    <flow id="WS_3001_3600" begin="3001" end="3600" probability="0.06" route="WS" type="WS_right"/>
 </routes>

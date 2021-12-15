@@ -113,7 +113,7 @@ class PDQNBaseAgent(Base_Agent):
         :param all_action_parameters:
         :return:
         """
-        return all_action_parameters.data.numpy() + (self.noise.sample() * self.action_parameter_range_numpy)
+        return all_action_parameters + (self.noise.sample() * self.action_parameter_range_numpy)
 
     def pick_action(self, state, train=True):
         if train:
@@ -121,26 +121,27 @@ class PDQNBaseAgent(Base_Agent):
                            math.exp(-1. * self.actions_count / self.epsilon_decay)
             self.actions_count += 1
             with torch.no_grad():
-                state = torch.from_numpy(state).to(self.device)
+                state = torch.FloatTensor(state).to(self.device)
                 all_action_parameters = self.actor_param.forward(state)
+                print('all_action_para:', all_action_parameters)
 
                 # Hausknecht and Stone [2016] use epsilon greedy actions with uniform random action-parameter
                 # exploration
                 if random.random() < self.epsilon:
                     action = np.random.randint(self.num_actions)
-                    all_action_parameters = torch.from_numpy(np.random.randint(self.action_parameter_min_numpy,
-                                                                               self.action_parameter_max_numpy))
+                    all_action_parameters = torch.FloatTensor(np.random.randint(self.action_parameter_min_numpy,
+                                                                                self.action_parameter_max_numpy))
                 else:
                     Q_a = self.actor.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
+                    print('Q_a', Q_a)
                     Q_a = Q_a.detach().data.numpy()
                     action = np.argmax(Q_a)
 
                 all_action_parameters = all_action_parameters.cpu().data.numpy()
-                self.ornstein_uhlenbeck_noise(all_action_parameters)
                 action_parameters = all_action_parameters[action]
         else:
             with torch.no_grad():
-                state = torch.from_numpy(state).to(self.device)
+                state = torch.FloatTensor(state).to(self.device)
                 all_action_parameters = self.actor_param.forward(state)
                 Q_a = self.actor.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
                 Q_a = Q_a.detach().data.numpy()
@@ -209,7 +210,7 @@ class PDQNBaseAgent(Base_Agent):
         self.actor_optimizer.zero_grad()
         loss_Q.backward()
         if self.clip_grad > 0:
-            torch.nn.utils.clip_grad_norm(self.actor.parameters(), self.clip_grad)
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.clip_grad)
         self.actor_optimizer.step()
 
         # ------------------------------ optimize ParamActor --------------------------------
@@ -233,7 +234,7 @@ class PDQNBaseAgent(Base_Agent):
         self.actor_param_optimizer.zero_grad()
         Q_loss.backward()
         if self.clip_grad > 0:
-            torch.nn.utils.clip_grad_norm(self.actor_param.parameters(), self.clip_grad)
+            torch.nn.utils.clip_grad_norm_(self.actor_param.parameters(), self.clip_grad)
         self.actor_param_optimizer.step()
 
         soft_update(source=self.actor, target=self.actor_target, tau=self.tau_actor)

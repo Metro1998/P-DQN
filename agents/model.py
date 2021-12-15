@@ -87,6 +87,6 @@ class ParamActor(nn.Module):
         for i in range(num_hidden_layers):
             x = F.relu(self.layers[i](x))
         action_params = self.action_parameters_output_layer(x)
-        action_params += self.action_parameters_passthrough_layer(state)
+        action_params = F.sigmoid(action_params) * 15 + 10
 
         return action_params

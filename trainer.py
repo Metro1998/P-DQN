@@ -88,6 +88,7 @@ class Train_and_Evaluate(object):
                         action, action_param, all_action_param = self.agent.pick_action(state, self.train)
 
                     action_for_env = tuple([action, all_action_param[action]])
+                    print(action_for_env)
                     if len(self.memory) > self.batch_size:
                         for i in range(self.updates_per_step):
                             self.agent.optimize_td_loss(self.memory)
@@ -108,18 +109,18 @@ class Train_and_Evaluate(object):
                 episode_score_so_far = episode_reward
                 game_full_episodes_scores.append(episode_score_so_far)
                 game_full_episodes_rolling_scores.append(
-                    np.mean(game_full_episodes_scores[-1 * self.rolling_score_window :]))
+                    np.mean(game_full_episodes_scores[-1 * self.rolling_score_window:]))
 
                 print("Episode: {}, total steps:{}, episode steps:{}, scores:{}".format(
                     i_episode, self.total_steps, episode_steps, episode_score_so_far))
 
                 self.env.close()
-            file_path_for_pic = os.path.join(file_to_save_runs, 'episode{}_run{}.jpg'.format(i_episode, run))
-            visualize_results_per_run(agent_results=game_full_episodes_scores,
-                                      agent_name=self.agent_name,
-                                      save_freq=self.save_freq,
-                                      file_path_for_pic=file_path_for_pic)
-            rolling_scores_for_diff_runs.append(game_full_episodes_rolling_scores)
+                file_path_for_pic = os.path.join(file_to_save_runs, 'episode{}_run{}.jpg'.format(i_episode, run))
+                visualize_results_per_run(agent_results=game_full_episodes_scores,
+                                          agent_name=self.agent_name,
+                                          save_freq=1,
+                                          file_path_for_pic=file_path_for_pic)
+                rolling_scores_for_diff_runs.append(game_full_episodes_rolling_scores)
 
         file_path_for_pic = os.path.join(file_to_save_rolling_scores, 'rolling_scores.jpg')
         visualize_overall_agent_results(agent_results=rolling_scores_for_diff_runs,

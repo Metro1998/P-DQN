@@ -54,7 +54,7 @@ def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std
 
     ax.set_facecolor('xkcd:white')
     ax.legend(loc='upper right', shadow='Ture', facecolor='inherit')
-    ax.set_title(title='Training', fontsize=15, fontweight='bold')
+    ax.set_title(label='Training', fontsize=15, fontweight='bold')
     ax.set_ylabel('Rolling Episode Scores')
     ax.set_xlabel('Episode Number')
     for spine in ['right', 'top']:
@@ -138,14 +138,14 @@ def visualize_results_per_run(agent_results, agent_name, save_freq, file_path_fo
     :return:
     """
     assert isinstance(agent_results, list), 'agent_results must be a list of lists.'
-    fig, ax = plt.subplots
+    fig, ax = plt.subplots()
     ax.set_facecolor('xkcd:white')
     ax.legend(loc='upper right', shadow='Ture', facecolor='inherit')
-    ax.set_title(title='Episode Scores For One Specific Run', fontsize=15, fontweight='bold')
+    ax.set_title(label='Episode Scores For One Specific Run', fontsize=15, fontweight='bold')
     ax.set_ylabel('Episode Scores')
     ax.set_xlabel('Episode Number')
     for spine in ['right', 'top']:
-        ax.spines[spine].set_visibl(False)
+        ax.spines[spine].set_visible(False)
     x_vals = list(range(len(agent_results)))
     ax.set_xlim([0, x_vals[-1]])
     ax.set_ylim([min(agent_results), max(agent_results)])
@@ -155,7 +155,6 @@ def visualize_results_per_run(agent_results, agent_name, save_freq, file_path_fo
     Runtime = len(agent_results)
     if Runtime % save_freq == 0:
         plt.savefig(file_path_for_pic)
-    plt.pause(0.01)
 
 
 # -------- Optimizer --------

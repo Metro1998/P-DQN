@@ -77,8 +77,6 @@ class FreewheelingIntersectionEnv(gym.Env):
 
     def __init__(self):
         self.phase_num = 8
-        self.action_low = np.array([10] * self.phase_num, dtype=np.float32)
-        self.action_high = np.array([25] * self.phase_num, dtype=np.float32)
 
         # for every vehicle type the maximum recorded number is 25 w.r.t its position(padded with 'inf') and speed
         # (padded with '0')
@@ -107,12 +105,11 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.alpha = 0.2
         self.episode_steps = 0
         self.reward_previous = []
-        self.action_old = []
         self.states = []
 
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.phase_num),
-            spaces.Box(low=self.action_low, high=self.action_high, dtype=np.float32)
+            spaces.Box(low=np.array([10]), high=np.array([25]), dtype=np.float32)
         ))
 
         observation_low = np.array([0.] * self.phase_num * 2 * self.pad_length)
@@ -137,15 +134,16 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         :return: dic, speed and position of different vehicle types
         """
-        os.getcwd()
-        path = '../envs/sumo/road_network/FW_Inter.sumocfg'
+        print(os.getcwd())
+        path = 'envs/sumo/road_network/FW_Inter.sumocfg'
 
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
         self.episode_steps = 0
+        self.action_old = []
         raw_info = self.retrieve_raw_info()
         state = self.retrieve_state(raw_info)
-        self.reward_previous = self.retrieve_reward(raw_info)
+        self.reward_previous = [0] * 4
 
         return np.array(state, dtype=np.float32)
 
@@ -177,7 +175,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         """
 
         phase_next = action[0]
-        phase_duration = action[1][phase_next]
+        phase_duration = action[1]
         self.states = []
 
         # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml We achieve hybrid action space
@@ -192,7 +190,7 @@ class FreewheelingIntersectionEnv(gym.Env):
                 pass
             else:
                 # When phase is changed, YELLOW PHASE is executed.
-                traci.trafficlight.setPhase('SmartWolfie', self.action_old[1][phase_next])
+                traci.trafficlight.setPhase('SmartWolfie', self.action_old[0])
                 for i in range(self.yellow):
                     self.sumo_step()
 
@@ -202,11 +200,12 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         # ---- states ----
         states = np.array(self.states, dtype=float)
+        print(states)
 
         # ---- reward ----
         raw_info = self.retrieve_raw_info()
         reward_so_far = self.retrieve_reward(raw_info)
-        reward = reward_so_far[0] - self.reward_previous[0]
+        reward = reward_so_far[1] - self.reward_previous[1]
 
         self.reward_previous = copy.deepcopy(reward_so_far)
         self.action_old = copy.deepcopy(action)
@@ -237,7 +236,7 @@ class FreewheelingIntersectionEnv(gym.Env):
                     vehicles_on_specific_edge.append(str(vehicleID[i]))
 
                 for ID in vehicles_on_specific_edge:
-                    tem = [0.] * 5
+                    tem = []
                     traci.vehicle.subscribe(ID, (tc.VAR_TYPE, tc.VAR_LANEPOSITION, tc.VAR_SPEED,
                                                  tc.VAR_ACCUMULATED_WAITING_TIME, tc.VAR_TIMELOSS))
                     for v in traci.vehicle.getSubscriptionResults(ID).values():
@@ -273,12 +272,14 @@ class FreewheelingIntersectionEnv(gym.Env):
                 for vehicle in raw_info[vehicle_type]:
                     position.append(vehicle[1])
                     speed.append(vehicle[2])
-                position = sum(position, [])
-                speed = sum(speed, [])
-            position = np.pad(position, (0, self.pad_length - len(position)), 'constant',
-                              constant_values=(0, 250))
-            speed = np.pad(speed, (0, self.pad_length - len(speed)), 'constant',
-                           constant_values=(0, 0))
+            if len(position) >= self.pad_length:
+                position = position[:self.pad_length]
+                speed = position[:self.pad_length]
+            else:
+                position = np.pad(position, (0, self.pad_length - len(position)), 'constant',
+                                  constant_values=(0, 250))
+                speed = np.pad(speed, (0, self.pad_length - len(speed)), 'constant',
+                               constant_values=(0, 0))
             state = np.concatenate((state, position), axis=0)
             state = np.concatenate((state, speed), axis=0)
         state = state.flatten()
@@ -328,10 +329,3 @@ class FreewheelingIntersectionEnv(gym.Env):
         :return:
         """
         traci.close()
-
-
-if __name__ == "__main__":
-    env = FreewheelingIntersectionEnv()
-    from stable_baselines3.common.env_checker import check_env
-
-    check_env(env)

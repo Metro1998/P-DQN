@@ -9,7 +9,7 @@ config.train = True
 config.evaluate = False
 config.evaluate_internal = 5
 config.environment = 'FreewheelingIntersection-v0'
-config.num_episodes_to_run = 100
+config.num_episodes_to_run = 500
 config.file_to_save = 'results/'
 config.save_model = True
 config.standard_deviation_results = 1.0
@@ -43,12 +43,12 @@ config.env_parameters = {
 }
 config.hyperparameters = {
     'device': 'cuda' if torch.cuda.is_available() else 'cpu',
-    'epsilon_initial': 1.0,
+    'epsilon_initial': 0.5,
     'epsilon_final': 0.05,
-    'epsilon_decay': 5000,
-    'replay_memory_size': 1e6,
+    'epsilon_decay': 500,
+    'replay_memory_size': 1e5,
     'initial_memory_threshold': 0,
-    'batch_size': 64,
+    'batch_size': 256,
     'gamma': 0.99,
     'learning_rate_actor': 1e-4,
     'learning_rate_actor_param': 1e-5,
@@ -58,7 +58,7 @@ config.hyperparameters = {
     'tau_actor_param': 0.01,
     'hidden_layer_actor': (256, 128, 64),
     'hidden_layer_actor_param': (256, 128, 64),
-    'random_pick_steps': 10000,
+    'random_pick_steps': 50,
     'updates_per_step': 1,
     'maximum_episodes': 500,
 }
