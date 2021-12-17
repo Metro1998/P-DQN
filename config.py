@@ -25,6 +25,7 @@ class Config(object):
         self.runs_per_agent = 10
         self.use_GPU = True
         self.agent_name = 'P-DQN'
+        self.demand = None
         self.env_parameters = {
             'phase_num': 8,
             'action_low': 5.,

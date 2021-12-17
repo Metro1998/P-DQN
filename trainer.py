@@ -6,12 +6,14 @@ import gym
 from agents.pdqn import PDQNBaseAgent
 from utilities.memory import ReplayBuffer
 from utilities.utilities import *
+from utilities.route_generator import generate_routefile
 
 
 class Train_and_Evaluate(object):
 
     def __init__(self, config):
         # Environment
+        generate_routefile(seed=config.seed, demand=config.demand)
         self.env = gym.make(config.environment)
 
         # Agent

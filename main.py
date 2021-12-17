@@ -20,7 +20,10 @@ config.rolling_score_window = 5
 config.runs_per_agent = 10
 config.agent_name = 'P-DQN'
 config.use_GPU = True
-
+config.demand = [
+    [1. / 12, 1. / 9, 1. / 8, 1. / 13, 1. / 6, 1.7, 1. / 12, 1. / 11, 1. / 10, 1. / 11, 1. / 6, 1. / 8],
+    [1. / 12, 1. / 9, 1. / 8, 1. / 13, 1. / 6, 1.7, 1. / 12, 1. / 11, 1. / 10, 1. / 11, 1. / 6, 1. / 8]
+]
 
 config.env_parameters = {
     'phase_num': 8,
@@ -66,5 +69,3 @@ config.hyperparameters = {
 if __name__ == "__main__":
     trainer = Train_and_Evaluate(config=config)
     trainer.train_agent()
-
-

@@ -106,6 +106,8 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.episode_steps = 0
         self.reward_previous = []
         self.states = []
+        self.action_old = []
+        self.max_queuing_speed =
 
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.phase_num),
@@ -199,8 +201,8 @@ class FreewheelingIntersectionEnv(gym.Env):
             self.sumo_step()
 
         # ---- states ----
-        states = np.array(self.states, dtype=float)
-        print(states)
+        state = np.array(self.states[-1], dtype=float)
+        print(state)
 
         # ---- reward ----
         raw_info = self.retrieve_raw_info()
@@ -215,7 +217,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         else:
             done = False
         info = {}
-        return states[-1], reward, done, info
+        return state, reward, done, info
 
     def retrieve_raw_info(self):
         """
@@ -293,20 +295,25 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         :return:
         """
+        speed = []
         loss_time = []
         accumulated_waiting_time = []
-        queue = []
         reward = np.array([0.] * 4)
         raw = list(raw.items())
+
         for vehicles_specific_type in raw:
+            speed_specific_type = []
             loss_time_specific_type = []
             accumulated_waiting_time_specific_type = []
             for vehicle in vehicles_specific_type[1]:
+                speed_specific_type.append(vehicle[2])
                 loss_time_specific_type.append(vehicle[4])
                 accumulated_waiting_time_specific_type.append(vehicle[3])
+            speed.append(speed_specific_type)
             loss_time.append(loss_time_specific_type)
             accumulated_waiting_time.append(accumulated_waiting_time_specific_type)
-            queue.append(len(loss_time_specific_type))
+        speed = sum(speed, [])
+        queue = len([i for i in speed if i > self])
         loss_time = sum(loss_time, [])
         accumulated_waiting_time = sum(accumulated_waiting_time, [])
         reward[0] = (np.mean(queue) + self.alpha * np.mean(loss_time))
