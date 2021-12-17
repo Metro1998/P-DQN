@@ -11,7 +11,7 @@ import numpy as np
 import torch.optim as optim
 import random
 from agents.base_agent import Base_Agent
-from agents.model import QActor, ParamActor
+from agents.model import DuelingDQN, ParamNet
 from utilities.utilities import *
 
 
@@ -57,8 +57,9 @@ class PDQNBaseAgent(Base_Agent):
         self.learning_rate_actor_param = self.hyperparameters['learning_rate_actor_param']
         self.tau_actor = self.hyperparameters['tau_actor']
         self.tau_actor_param = self.hyperparameters['tau_actor_param']
-        self.hidden_layer_actor = self.hyperparameters['hidden_layer_actor']
-        self.hidden_layer_actor_param = self.hyperparameters['hidden_layer_actor_param']
+        self.adv_hidden_layers = self.hyperparameters['adv_hidden_layers']
+        self.val_hidden_layers = self.hyperparameters['val_hidden_layers']
+        self.param_hidden_layers = self.hyperparameters['param_hidden_layers']
         self.clip_grad = self.hyperparameters['clip_grad']
 
         self.actions_count = 0
@@ -68,18 +69,19 @@ class PDQNBaseAgent(Base_Agent):
 
         # ----  Instantiation  ----
         self.state_size = self.env_parameters['phase_num'] * self.env_parameters['pad_length'] * 2
-        self.actor = QActor(self.state_size, self.num_actions, self.action_parameter_size,
-                            self.hidden_layer_actor).to(self.device)
-        self.actor_target = QActor(self.state_size, self.num_actions, self.action_parameter_size,
-                                   self.hidden_layer_actor).to(self.device)
+        self.param_state_size = self.state_size / 8
+        self.actor = DuelingDQN(self.state_size, self.num_actions, self.adv_hidden_layers,
+                                self.val_hidden_layers).to(self.device)
+        self.actor_target = DuelingDQN(self.state_size, self.num_actions, self.adv_hidden_layers,
+                                       self.val_hidden_layers).to(self.device)
         hard_update(source=self.actor, target=self.actor_target)
         self.actor_target.eval()
         print(self.actor)
 
-        self.actor_param = ParamActor(self.state_size, self.num_actions,
-                                      self.action_parameter_size, self.hidden_layer_actor_param).to(self.device)
-        self.actor_param_target = ParamActor(self.state_size, self.num_actions,
-                                             self.action_parameter_size, self.hidden_layer_actor_param).to(self.device)
+        self.actor_param = ParamNet(self.state_size, self.num_actions,
+                                    self.param_hidden_layers).to(self.device)
+        self.actor_param_target = ParamNet(self.state_size, self.num_actions,
+                                           self.param_hidden_layers).to(self.device)
         hard_update(source=self.actor_param, target=self.actor_param_target)
         self.actor_param_target.eval()
         print(self.actor_param)
