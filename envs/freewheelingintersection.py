@@ -13,6 +13,7 @@ import copy
 import traci
 import traci.constants as tc
 from gym import spaces
+from bisect import bisect_left
 
 
 class FreewheelingIntersectionEnv(gym.Env):
@@ -80,7 +81,7 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         # for every vehicle type the maximum recorded number is 25 w.r.t its position(padded with 'inf') and speed
         # (padded with '0')
-        self.pad_length = 25
+        self.cells = 32
 
         self.lane_length_high = 250.
         self.speed_high = 100.
@@ -95,8 +96,20 @@ class FreewheelingIntersectionEnv(gym.Env):
                               'SN_through', 'SW_left',
                               'WE_through', 'WN_left']
 
+        self.phase_transformer = np.array([
+            [None, 8, 8, 8, 16, 8, 17, 8],
+            [9, None, 9, 9, 9, 18, 9, 19],
+            [10, 10, None, 10, 20, 10, 21, 10],
+            [11, 11, 11, None, 11, 22, 11, 23],
+            [21, 12, 17, 12, None, 12, 12, 12],
+            [13, 23, 13, 19, 13, None, 13, 13],
+            [20, 14, 16, 14, 14, 14, None, 14],
+            [15, 22, 15, 18, 15, 15, 15, None]
+        ])
+
         self.yellow = 3
-        self.lane_length = 234.12
+        self.lane_length = 234.13
+        self.max_queuing_speed = 1.
         self.simulation_steps = 3600
 
         # when step() we will save last 'self.N_STEPS' states for state representation
@@ -106,8 +119,6 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.episode_steps = 0
         self.reward_previous = []
         self.states = []
-        self.action_old = []
-        self.max_queuing_speed =
 
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.phase_num),
@@ -192,7 +203,8 @@ class FreewheelingIntersectionEnv(gym.Env):
                 pass
             else:
                 # When phase is changed, YELLOW PHASE is executed.
-                traci.trafficlight.setPhase('SmartWolfie', self.action_old[0])
+                yellow_phase = self.phase_transformer[self.action_old[0]][action[0]]
+                traci.trafficlight.setPhase('SmartWolfie', yellow_phase)
                 for i in range(self.yellow):
                     self.sumo_step()
 
@@ -207,7 +219,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         # ---- reward ----
         raw_info = self.retrieve_raw_info()
         reward_so_far = self.retrieve_reward(raw_info)
-        reward = reward_so_far[1] - self.reward_previous[1]
+        reward = reward_so_far[0] - self.reward_previous[0]
 
         self.reward_previous = copy.deepcopy(reward_so_far)
         self.action_old = copy.deepcopy(action)
@@ -248,6 +260,7 @@ class FreewheelingIntersectionEnv(gym.Env):
                     # ID:str, vehicle's ID
                     # tem[1]:float, the distance between vehicle and lane's stop line.
                     # tem[2]:float, speed
+                    tem[2] *= 3.6
                     # tem[3]:float, accumulated_waiting_time
                     # tem[4]:float, time loss
                     if tem[0] not in vehicles_raw_info:
@@ -261,27 +274,21 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         :return:
         """
+
         vehicle_types_so_far = []
         state = np.array([])
+        cell_space = np.linspace(0, 240, num=(self.cells + 1))
 
         raw = list(raw_info.items())
         for type in raw:
             vehicle_types_so_far.append(type[0])
         for vehicle_type in self.vehicle_types:
-            position = []
-            speed = []
+            position = np.zeros(self.cells)
+            speed = np.zeros(self.cells)
             if vehicle_type in vehicle_types_so_far:
                 for vehicle in raw_info[vehicle_type]:
-                    position.append(vehicle[1])
-                    speed.append(vehicle[2])
-            if len(position) >= self.pad_length:
-                position = position[:self.pad_length]
-                speed = position[:self.pad_length]
-            else:
-                position = np.pad(position, (0, self.pad_length - len(position)), 'constant',
-                                  constant_values=(0, 250))
-                speed = np.pad(speed, (0, self.pad_length - len(speed)), 'constant',
-                               constant_values=(0, 0))
+                    position[bisect_left(cell_space, vehicle[1])]
+                    speed[bisect_left(cell_space), vehicle[1]]
             state = np.concatenate((state, position), axis=0)
             state = np.concatenate((state, speed), axis=0)
         state = state.flatten()
@@ -290,36 +297,36 @@ class FreewheelingIntersectionEnv(gym.Env):
 
     def retrieve_reward(self, raw):
         """
-        Temporarily, we just use 'queue' and 'time loss' to design the reward.
-        Alpha is a trade off between the influence of 'queue' and 'time loss'.
 
         :return:
         """
-        speed = []
         loss_time = []
         accumulated_waiting_time = []
-        reward = np.array([0.] * 4)
-        raw = list(raw.items())
+        speed = []
+        queue = []
+        reward = np.array([0.] * 3)
 
+        raw = list(raw.items())
         for vehicles_specific_type in raw:
             speed_specific_type = []
-            loss_time_specific_type = []
             accumulated_waiting_time_specific_type = []
+            loss_time_specific_type = []
             for vehicle in vehicles_specific_type[1]:
                 speed_specific_type.append(vehicle[2])
-                loss_time_specific_type.append(vehicle[4])
                 accumulated_waiting_time_specific_type.append(vehicle[3])
-            speed.append(speed_specific_type)
-            loss_time.append(loss_time_specific_type)
+                loss_time_specific_type.append(vehicle[4])
+            for speed in speed_specific_type:
+                if speed < self.max_queuing_speed:
+                    queue.append(len(speed_specific_type[-speed_specific_type.index(speed):]))
+                    break
             accumulated_waiting_time.append(accumulated_waiting_time_specific_type)
-        speed = sum(speed, [])
-        queue = len([i for i in speed if i > self])
+            loss_time.append(loss_time_specific_type)
         loss_time = sum(loss_time, [])
         accumulated_waiting_time = sum(accumulated_waiting_time, [])
-        reward[0] = (np.mean(queue) + self.alpha * np.mean(loss_time))
-        reward[1] = np.mean(queue)
-        reward[2] = np.mean(loss_time)
-        reward[3] = np.mean(accumulated_waiting_time)
+
+        reward[0] = np.sum(queue)  # total queue at present
+        reward[1] = np.mean(loss_time)  # average loss time
+        reward[2] = np.mean(accumulated_waiting_time)  # average waiting time
 
         return reward
 

@@ -1,31 +1,58 @@
 <additional>
   <tlLogic id="SmartWolfie" type="static" programID="SmartWolfie_V0" offset="0">
-        # north_south_through
-        <phase  duration="1000" state="GGGGGGrrrGGGrrrrrrGGGGGGrrrGGGrrrrrr"/>
-        # east_west_through
-        <phase  duration="1000" state="GGGrrrrrrGGGGGGrrrGGGrrrrrrGGGGGGrrr"/>
-        # north_south_left
-        <phase  duration="1000" state="GGGrrrGGGGGGrrrrrrGGGrrrGGGGGGrrrrrr"/>
-        # east_west_left
-        <phase  duration="1000" state="GGGrrrrrrGGGrrrGGGGGGrrrrrrGGGrrrGGG"/>
-        # north_through_left
-        <phase  duration="1000" state="GGGGGGGGGGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
-        # east_through_left
-        <phase  duration="1000" state="GGGrrrrrrGGGGGGGGGGGGrrrrrrGGGrrrrrr"/>
-        # south_through_left
-        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGGGGGGGGGGrrrrrr"/>
-        # west_through_left
-        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGGGGGGG"/>
+        # phase0 north_south_through
+        <phase  duration="1000" state="rrrGGGGGGrrrrrrGGGrrrGGGGGGrrrrrrGGG"/>
+        # phase1 east_west_through
+        <phase  duration="1000" state="rrrrrrGGGrrrGGGGGGrrrrrrGGGrrrGGGGGG"/>
+        # phase2 north_south_left
+        <phase  duration="1000" state="GGGrrrGGGrrrrrrGGGGGGrrrGGGrrrrrrGGG"/>
+        # phase3 east_west_left
+        <phase  duration="1000" state="rrrrrrGGGGGGrrrGGGrrrrrrGGGGGGrrrGGG"/>
+        # phase4 north_through_left
+        <phase  duration="1000" state="GGGGGGGGGrrrrrrGGGrrrrrrGGGrrrrrrGGG"/>
+        # phase5 east_through_left
+        <phase  duration="1000" state="rrrrrrGGGGGGGGGGGGrrrrrrGGGrrrrrrGGG"/>
+        # phase6 south_through_left
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGGGGGGGGGGrrrrrrGGG"/>
+        # phase7 west_through_left
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGrrrrrrGGGGGGGGGGGG"/>
 
         # all yellow phase respectively
-        <phase  duration="1000" state="GGGyyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrr"/>
-        <phase  duration="1000" state="GGGrrryyyGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGrrryyyGGGrrrrrrGGGrrryyy"/>
-        <phase  duration="1000" state="GGGyyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrr"/>
-        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGyyyyyy"/>
+        # phase8 north_south_through
+        <phase  duration="1000" state="rrryyyGGGrrrrrrGGGrrryyyGGGrrrrrrGGG"/>
+        # phase9 east_west_through
+        <phase  duration="1000" state="rrrrrrGGGrrryyyGGGrrrrrrGGGrrryyyGGG"/>
+        # phase10 north_south_left
+        <phase  duration="1000" state="yyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrrGGG"/>
+        # phase11 east_west_left
+        <phase  duration="1000" state="rrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrrGGG"/>
+        # phase12 north_through_left
+        <phase  duration="1000" state="yyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrrGGG"/>
+        # phase13 east_through_left
+        <phase  duration="1000" state="rrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrrGGG"/>
+        # phase14 south_through_left
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrrGGG"/>
+        # phase15 west_through_left
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGrrrrrrGGGyyyyyyGGG"/>
+
+        # phase16 south_through
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGrrryyyGGGrrrrrrGGG"/>
+        # phase17 north_through
+        <phase  duration="1000" state="rrryyyGGGrrrrrrGGGrrrrrrGGGrrrrrrGGG"/>
+        # phase18 west_through
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGrrrrrrGGGrrryyyGGG"/>
+        # phase19 east_through
+        <phase  duration="1000" state="rrrrrrGGGrrryyyGGGrrrrrrGGGrrrrrrGGG"/>
+        # phase20 south_left
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGyyyrrrGGGrrrrrrGGG"/>
+        # phase21 north_left
+        <phase  duration="1000" state="yyyrrrGGGrrrrrrGGGrrrrrrGGGrrrrrrGGG"/>
+        # phase22 west_left
+        <phase  duration="1000" state="rrrrrrGGGrrrrrrGGGrrrrrrGGGyyyrrrGGG"/>
+        # phase23 east_left
+        <phase  duration="1000" state="rrrrrrGGGyyyrrrGGGrrrrrrGGGrrrrrrGGG"/>
+
+
         # all red
         <phase  duration="1000" state="rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"/>
 
