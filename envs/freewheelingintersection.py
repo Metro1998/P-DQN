@@ -30,18 +30,15 @@ class FreewheelingIntersectionEnv(gym.Env):
         NORMAL env, just add some confines in env or train.py.
 
     Observation:
-        Type: Box(400)
-        # 400 = 8 * 25 * 2
-        # 8 phases
-        # We only record the first 25th vehicles(fixed number) on each lane(?)
-        # The distance to the stop line and speed are considered
-        # When vehicles are absent on one lane, pad it with float('inf') and 0 w.r.t position and speed.
+        Type: Box(512)
+        # 512 = 32 * 8 * 2
+        # 32 cells in one phase, 8 phases, 2 specific items, speed and location.
+        # When vehicles are absent in one specific cell, pad it with 0. and 0. w.r.t position and speed.
         Num  Observation                   Min      Max
-        0    Phase_0 vehicle_0 position     0       250
+        0    Phase_0 cell_0 position        0.       1.
                             ...
-        25   Phase_0 vehicle_0 speed        0       100
+        256   Phase_0 cell_0 speed          0.      100.
                             ...
-
     Actions:
         Type: Discrete(8)
         Num   Action
@@ -78,12 +75,7 @@ class FreewheelingIntersectionEnv(gym.Env):
 
     def __init__(self):
         self.phase_num = 8
-
-        # for every vehicle type the maximum recorded number is 25 w.r.t its position(padded with 'inf') and speed
-        # (padded with '0')
         self.cells = 32
-
-        self.lane_length_high = 250.
         self.speed_high = 100.
 
         # the edgeID is defined in FW_Inter.edg.xml
@@ -107,8 +99,9 @@ class FreewheelingIntersectionEnv(gym.Env):
             [15, 22, 15, 18, 15, 15, 15, None]
         ])
 
+        self.lane_length = 240.
+        self.action_old = []
         self.yellow = 3
-        self.lane_length = 234.13
         self.max_queuing_speed = 1.
         self.simulation_steps = 3600
 
@@ -125,10 +118,14 @@ class FreewheelingIntersectionEnv(gym.Env):
             spaces.Box(low=np.array([10]), high=np.array([25]), dtype=np.float32)
         ))
 
-        observation_low = np.array([0.] * self.phase_num * 2 * self.pad_length)
-        observation_high = np.concatenate((np.array([self.lane_length_high] * self.pad_length),
-                                           np.array([self.speed_high] * self.pad_length)), axis=None)
-        observation_high = np.tile(observation_high, self.phase_num)
+        observation_low_position = np.array([0.] * self.phase_num * self.cells)
+        observation_low_speed = np.array([0.] * self.phase_num * self.cells)
+        observation_low = np.concatenate((observation_low_position, observation_low_speed), axis=0)
+
+        observation_high_position = np.array([1.] * self.phase_num * self.cells)
+        observation_high_speed = np.array([100.] * self.phase_num * self.cells)
+        observation_high = np.concatenate((observation_high_position, observation_high_speed), axis=0)
+
         self.observation_space = spaces.Box(
             low=observation_low,
             high=observation_high,
@@ -148,14 +145,14 @@ class FreewheelingIntersectionEnv(gym.Env):
         :return: dic, speed and position of different vehicle types
         """
         print(os.getcwd())
-        path = 'envs/sumo/road_network/FW_Inter.sumocfg'
+        path = '../envs/sumo/road_network/FW_Inter.sumocfg'
 
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
         self.episode_steps = 0
         self.action_old = []
-        raw_info = self.retrieve_raw_info()
-        state = self.retrieve_state(raw_info)
+        raw = self.retrieve_raw_info()
+        state = self.retrieve_state(raw)
         self.reward_previous = [0] * 4
 
         return np.array(state, dtype=np.float32)
@@ -168,9 +165,6 @@ class FreewheelingIntersectionEnv(gym.Env):
         """
         traci.simulationStep()
         self.episode_steps += 1
-        raw_info = self.retrieve_raw_info()
-        state = self.retrieve_state(raw_info)
-        self.states.append(state)
 
     def step(self, action):
         """
@@ -191,34 +185,27 @@ class FreewheelingIntersectionEnv(gym.Env):
         phase_duration = action[1]
         self.states = []
 
-        # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml We achieve hybrid action space
-        # control through switch its phase and steps(controlled by self.YELLOW and GREEN(phase_duration)).
+        # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml.
+        # We achieve hybrid action space control through switch its phase and steps
+        # (controlled by YELLOW(3s in default) and GREEN(phase_duration)).
         # There is possibility that phase next period is same with the phase right now
-
-        if not self.action_old:
-            pass
-        else:
-            if action[0] == self.action_old[0]:
-                # Phase next period is same with the phase right now, just accumulate the duration
-                pass
-            else:
-                # When phase is changed, YELLOW PHASE is executed.
-                yellow_phase = self.phase_transformer[self.action_old[0]][action[0]]
-                traci.trafficlight.setPhase('SmartWolfie', yellow_phase)
-                for i in range(self.yellow):
-                    self.sumo_step()
+        # Otherwise there is a yellow_phase between two different phases.
+        if self.action_old and action[0] != self.action_old[0]:
+            yellow_phase = self.phase_transformer[self.action_old[0]][action[0]]
+            traci.trafficlight.setPhase('SmartWolfie', yellow_phase)
+            for t in range(self.yellow):
+                self.sumo_step()
 
         traci.trafficlight.setPhase('SmartWolfie', phase_next)
-        for i in range(int(np.ceil(phase_duration))):
+        for t in range(int(np.ceil(phase_duration))):
             self.sumo_step()
 
+        raw = self.retrieve_raw_info()
         # ---- states ----
-        state = np.array(self.states[-1], dtype=float)
-        print(state)
+        state = self.retrieve_state(raw)
 
         # ---- reward ----
-        raw_info = self.retrieve_raw_info()
-        reward_so_far = self.retrieve_reward(raw_info)
+        reward_so_far = self.retrieve_reward(raw)
         reward = reward_so_far[0] - self.reward_previous[0]
 
         self.reward_previous = copy.deepcopy(reward_so_far)
@@ -246,8 +233,8 @@ class FreewheelingIntersectionEnv(gym.Env):
             traci.edge.subscribe(edgeID, (tc.LAST_STEP_VEHICLE_ID_LIST,))
             # vehicleID is a tuple at this step
             for vehicleID in traci.edge.getSubscriptionResults(edgeID).values():
-                for i in range(len(vehicleID)):
-                    vehicles_on_specific_edge.append(str(vehicleID[i]))
+                for t in range(len(vehicleID)):
+                    vehicles_on_specific_edge.append(str(vehicleID[t]))
 
                 for ID in vehicles_on_specific_edge:
                     tem = []
@@ -256,11 +243,11 @@ class FreewheelingIntersectionEnv(gym.Env):
                     for v in traci.vehicle.getSubscriptionResults(ID).values():
                         tem.append(v)
                     tem[1] = self.lane_length - tem[1]
-                    # LENGTH_LANE is the length of  lane, gotten from FW_Inter.net.xml.
-                    # ID:str, vehicle's ID
+                    # LENGTH_LANE is the length of lane, gotten from FW_Inter.net.xml.
+                    # tem[0]:str, vehicle's ID
                     # tem[1]:float, the distance between vehicle and lane's stop line.
                     # tem[2]:float, speed
-                    tem[2] *= 3.6
+                    tem[2] /= 3.6
                     # tem[3]:float, accumulated_waiting_time
                     # tem[4]:float, time loss
                     if tem[0] not in vehicles_raw_info:
@@ -269,29 +256,30 @@ class FreewheelingIntersectionEnv(gym.Env):
 
         return vehicles_raw_info
 
-    def retrieve_state(self, raw_info):
+    def retrieve_state(self, raw):
         """
 
         :return:
         """
 
         vehicle_types_so_far = []
-        state = np.array([])
+        position_ = np.array([])
+        speed_ = np.array([])
         cell_space = np.linspace(0, 240, num=(self.cells + 1))
+        print(cell_space)
 
-        raw = list(raw_info.items())
         for type in raw:
-            vehicle_types_so_far.append(type[0])
+            vehicle_types_so_far.append(type)
         for vehicle_type in self.vehicle_types:
             position = np.zeros(self.cells)
             speed = np.zeros(self.cells)
             if vehicle_type in vehicle_types_so_far:
-                for vehicle in raw_info[vehicle_type]:
-                    position[bisect_left(cell_space, vehicle[1])]
-                    speed[bisect_left(cell_space), vehicle[1]]
-            state = np.concatenate((state, position), axis=0)
-            state = np.concatenate((state, speed), axis=0)
-        state = state.flatten()
+                for vehicle in raw.get(vehicle_type):
+                    position[bisect_left(cell_space, vehicle[1]) - 1] = 1.
+                    speed[bisect_left(cell_space, vehicle[1]) - 1] = vehicle[2]
+            position_ = np.concatenate((position_, position), axis=0)
+            speed_ = np.concatenate((speed_, speed), axis=0)
+        state = np.concatenate((position_, speed_), axis=0)
 
         return state
 
@@ -343,3 +331,14 @@ class FreewheelingIntersectionEnv(gym.Env):
         :return:
         """
         traci.close()
+
+
+if __name__ == "__main__":
+    fw = FreewheelingIntersectionEnv()
+    fw.reset()
+    for i in range(50):
+        fw.sumo_step()
+    raw_info = fw.retrieve_raw_info()
+    print(raw_info)
+    fw.retrieve_state(raw_info)
+

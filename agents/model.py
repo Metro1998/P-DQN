@@ -12,23 +12,25 @@ import torch.nn.functional as F
 
 class DuelingDQN(nn.Module):
 
-    def __init__(self, state_size, action_size, adv_hidden_layers=(256, 128, 64),
+    def __init__(self, state_size, action_size, param_state_size, adv_hidden_layers=(256, 128, 64),
                  val_hidden_layers=(256, 128, 64)):
         """
 
         :param state_size:
         :param action_size:
+        :param param_state_size:
         :param adv_hidden_layers:
         :param val_hidden_layers
         """
         super(DuelingDQN, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
+        self.param_state_size = param_state_size
 
         # create layers
         self.adv_layers = nn.ModuleList()
         self.val_layers = nn.ModuleList()
-        input_size = self.state_size + self.action_parameter_size
+        input_size = self.state_size + self.param_state_size
 
         # adv_layers
         self.adv_layers.append(nn.Linear(input_size, adv_hidden_layers[0]))
