@@ -20,16 +20,17 @@ config.rolling_score_window = 5
 config.runs_per_agent = 10
 config.agent_name = 'P-DQN'
 config.use_GPU = True
+config.ceil = True
 config.demand = [
-    [1. / 12, 1. / 9, 1. / 8, 1. / 13, 1. / 6, 1.7, 1. / 12, 1. / 11, 1. / 10, 1. / 11, 1. / 6, 1. / 8],
-    [1. / 12, 1. / 9, 1. / 8, 1. / 13, 1. / 6, 1.7, 1. / 12, 1. / 11, 1. / 10, 1. / 11, 1. / 6, 1. / 8]
+    [1. / 12, 1. / 19, 1. / 18, 1. / 13, 1. / 16, 1. / 14, 1. / 22, 1. / 21, 1. / 20, 1. / 11, 1. / 16, 1. / 18],
+    [1. / 12, 1. / 19, 1. / 18, 1. / 13, 1. / 16, 1. / 14, 1. / 12, 1. / 11, 1. / 10, 1. / 11, 1. / 16, 1. / 18]
 ]
 
 config.env_parameters = {
     'phase_num': 8,
     'action_low': 5.,
     'action_high': 20.,
-    'pad_length': 25,
+    'cells': 32,
     'lane_length_high': 250.,
     'speed_high': 100.,
     'edge_ids': ['north_in', 'east_in', 'south_in', 'west_in'],
@@ -38,7 +39,6 @@ config.env_parameters = {
                        'SE_right', 'SN_through', 'SW_left',
                        'WS_right', 'WE_through', 'WN_left'],
     'yellow': 3,
-    'lane_length': 234.12,
     'simulation_steps': 3600,
     'n_steps': 5,
     'alpha': 0.2,  # TODO
@@ -62,7 +62,7 @@ config.hyperparameters = {
     'adv_hidden_layers': (256, 128, 64),
     'val_hidden_layers': (256, 128, 64),
     'param_hidden_layers': (256, 128, 64),
-    'random_pick_steps': 50,
+    'random_pick_steps': 200,
     'updates_per_step': 1,
     'maximum_episodes': 500,
 }

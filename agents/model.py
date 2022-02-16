@@ -38,11 +38,21 @@ class DuelingDQN(nn.Module):
             self.adv_layers.append(nn.Linear(adv_hidden_layers[i - 1], adv_hidden_layers[i]))
         self.adv_layers.append(nn.Linear(adv_hidden_layers[-1], self.action_size))
 
+        # initialize adv_layer weights
+        for i in range(0, len(self.adv_layers)):
+            nn.init.kaiming_normal_(self.adv_layers[i].weight, nonlinearity='relu')
+            nn.init.zeros_(self.adv_layers[i].bias)
+
         # val_layers
         self.val_layers.append(nn.Linear(input_size, val_hidden_layers[0]))
         for i in range(1, len(val_hidden_layers)):
             self.val_layers.append(nn.Linear(val_hidden_layers[i - 1], val_hidden_layers[i]))
         self.val_layers.append(nn.Linear(val_hidden_layers[-1], 1))
+
+        # initialize val_layer weights
+        for i in range(0, len(self.val_layers)):
+            nn.init.kaiming_normal_(self.val_layers[i].weight, nonlinearity='relu')
+            nn.init.zeros_(self.val_layers[i].bias)
 
     def forward(self, state, action_parameters):
         # batch_size = x.size(0)
@@ -66,25 +76,30 @@ class DuelingDQN(nn.Module):
 
 class ParamNet(nn.Module):
 
-    def __init__(self, param_state_size, action_size, param_hidden_layers):
+    def __init__(self, state_size, action_size, param_hidden_layers):
         """
 
-        :param param_state_size:
+        :param state_size:
         :param action_size:
         :param param_hidden_layers:
         """
         super(ParamNet, self).__init__()
 
-        self.param_state_size = param_state_size
+        self.state_size = state_size
         self.action_size = action_size
 
         # create layers
         self.layers = nn.ModuleList()
-        input_size = self.param_state_size
+        input_size = self.state_size
         self.layers.append(nn.Linear(input_size, param_hidden_layers[0]))
         for i in range(1, len(param_hidden_layers)):
             self.layers.append(nn.Linear(param_hidden_layers[i - 1], param_hidden_layers[i]))
         self.layers.append(nn.Linear(param_hidden_layers[-1], self.action_size))
+
+        # initialize layer weights
+        for i in range(0, len(self.layers)):
+            nn.init.kaiming_normal_(self.layers[i].weight, nonlinearity='relu')
+            nn.init.zeros_(self.layers[i].bias)
 
     def forward(self, state):
         x = state

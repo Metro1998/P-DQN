@@ -3,6 +3,7 @@
 import os.path
 
 import gym
+import numpy as np
 from agents.pdqn import PDQNBaseAgent
 from utilities.memory import ReplayBuffer
 from utilities.utilities import *
@@ -46,6 +47,7 @@ class Train_and_Evaluate(object):
         self.rolling_score_window = config.rolling_score_window
         self.runs_per_agent = config.runs_per_agent
         self.agent_name = config.agent_name
+        self.ceil = config.ceil
 
         # Training Loop
 
@@ -87,9 +89,11 @@ class Train_and_Evaluate(object):
                     if self.total_steps < self.randomly_pick_steps:
                         action, all_action_param = self.agent.randomly_pick()
                     else:
-                        action, action_param, all_action_param = self.agent.pick_action(state, self.train)
+                        action, all_action_param = self.agent.pick_action(state, self.train)
 
-                    action_for_env = tuple([action, all_action_param[action]])
+                    if self.ceil:
+                        all_action_param = np.ceil(all_action_param)
+                    action_for_env = [action, list(all_action_param)]
                     print(action_for_env)
                     if len(self.memory) > self.batch_size:
                         for i in range(self.updates_per_step):

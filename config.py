@@ -26,11 +26,12 @@ class Config(object):
         self.use_GPU = True
         self.agent_name = 'P-DQN'
         self.demand = None
+        self.ceil = True
         self.env_parameters = {
             'phase_num': 8,
             'action_low': 5.,
             'action_high': 20.,
-            'pad_length': 25.,
+            'cells': 32,
             'lane_length_high': 250.,
             'speed_high': 100.,
             'edge_ids': ['north_in', 'east_in', 'south_in', 'west_in'],
@@ -39,7 +40,6 @@ class Config(object):
                                'SE_right', 'SN_through', 'SW_left',
                                'WS_right', 'WE_through', 'WN_left'],
             'yellow': 3,
-            'lane_length': 234.12,
             'simulation_steps': 3600,
             'n_steps': 5,
             'alpha': 0.2,  # TODO

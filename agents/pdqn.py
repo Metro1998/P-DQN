@@ -68,15 +68,14 @@ class PDQNBaseAgent(Base_Agent):
                                                   mu=0., theta=0.15, sigma=0.0001)
 
         # ----  Instantiation  ----
-        self.state_size = self.env_parameters['phase_num'] * self.env_parameters['pad_length'] * 2
-        self.param_state_size = self.state_size / 8
-        self.actor = DuelingDQN(self.state_size, self.num_actions, self.adv_hidden_layers,
+        self.state_size = self.env_parameters['phase_num'] * self.env_parameters['cells'] * 2
+        self.param_state_size = self.env_parameters['phase_num']
+        self.actor = DuelingDQN(self.state_size, self.num_actions, self.param_state_size, self.adv_hidden_layers,
                                 self.val_hidden_layers).to(self.device)
-        self.actor_target = DuelingDQN(self.state_size, self.num_actions, self.adv_hidden_layers,
+        self.actor_target = DuelingDQN(self.state_size, self.num_actions, self.param_state_size, self.adv_hidden_layers,
                                        self.val_hidden_layers).to(self.device)
         hard_update(source=self.actor, target=self.actor_target)
         self.actor_target.eval()
-        print(self.actor)
 
         self.actor_param = ParamNet(self.state_size, self.num_actions,
                                     self.param_hidden_layers).to(self.device)
@@ -84,8 +83,6 @@ class PDQNBaseAgent(Base_Agent):
                                            self.param_hidden_layers).to(self.device)
         hard_update(source=self.actor_param, target=self.actor_param_target)
         self.actor_param_target.eval()
-        print(self.actor_param)
-
         self.loss_func = self.hyperparameters['loss_func']
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate_actor)  # TODO more details
@@ -140,7 +137,6 @@ class PDQNBaseAgent(Base_Agent):
                     action = np.argmax(Q_a)
 
                 all_action_parameters = all_action_parameters.cpu().data.numpy()
-                action_parameters = all_action_parameters[action]
         else:
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(self.device)
@@ -149,9 +145,8 @@ class PDQNBaseAgent(Base_Agent):
                 Q_a = Q_a.detach().data.numpy()
                 action = np.argmax(Q_a)
                 all_action_parameters = all_action_parameters.cpu().data.numpy()
-                action_parameters = all_action_parameters[action]
 
-        return action, action_parameters, all_action_parameters
+        return action, all_action_parameters
 
     def randomly_pick(self):
         """
@@ -161,7 +156,7 @@ class PDQNBaseAgent(Base_Agent):
         :return:
         """
         random_phase = np.random.randint(self.num_actions)
-        random_duration = np.random.randint(low=10, high=26, size=self.num_actions)
+        random_duration = np.random.uniform(low=10, high=25, size=self.num_actions)
 
         return random_phase, random_duration.tolist()
 

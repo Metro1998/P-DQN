@@ -103,7 +103,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.action_old = []
         self.yellow = 3
         self.max_queuing_speed = 1.
-        self.simulation_steps = 3600
+        self.simulation_steps = 1800
 
         # when step() we will save last 'self.N_STEPS' states for state representation
         self.n_steps = 5
@@ -111,7 +111,6 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.alpha = 0.2
         self.episode_steps = 0
         self.reward_previous = []
-        self.states = []
 
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.phase_num),
@@ -145,7 +144,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         :return: dic, speed and position of different vehicle types
         """
         print(os.getcwd())
-        path = '../envs/sumo/road_network/FW_Inter.sumocfg'
+        path = 'envs/sumo/road_network/FW_Inter.sumocfg'
 
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
@@ -175,22 +174,22 @@ class FreewheelingIntersectionEnv(gym.Env):
               traci.simulationStep() consecutively.
 
 
-        :param action:list, e.g. [4, 12, 11, 13, 15, 10, 12, 16, 23],
+        :param action:list, e.g. [4, [12, 11, 13, 15, 10, 12, 16, 23]],
                              the first element is the phase next period,
                              and the latter ones are duration w.r.t all phases.
         :return: next_state, reward, done, info
         """
 
         phase_next = action[0]
-        phase_duration = action[1]
-        self.states = []
+        print(phase_next)
+        phase_duration = action[1][phase_next]
 
         # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml.
         # We achieve hybrid action space control through switch its phase and steps
         # (controlled by YELLOW(3s in default) and GREEN(phase_duration)).
         # There is possibility that phase next period is same with the phase right now
         # Otherwise there is a yellow_phase between two different phases.
-        if self.action_old and action[0] != self.action_old[0]:
+        if len(self.action_old) and action[0] != self.action_old[0]:
             yellow_phase = self.phase_transformer[self.action_old[0]][action[0]]
             traci.trafficlight.setPhase('SmartWolfie', yellow_phase)
             for t in range(self.yellow):
@@ -216,6 +215,7 @@ class FreewheelingIntersectionEnv(gym.Env):
         else:
             done = False
         info = {}
+        print(state)
         return state, reward, done, info
 
     def retrieve_raw_info(self):
@@ -247,7 +247,6 @@ class FreewheelingIntersectionEnv(gym.Env):
                     # tem[0]:str, vehicle's ID
                     # tem[1]:float, the distance between vehicle and lane's stop line.
                     # tem[2]:float, speed
-                    tem[2] /= 3.6
                     # tem[3]:float, accumulated_waiting_time
                     # tem[4]:float, time loss
                     if tem[0] not in vehicles_raw_info:
@@ -266,7 +265,6 @@ class FreewheelingIntersectionEnv(gym.Env):
         position_ = np.array([])
         speed_ = np.array([])
         cell_space = np.linspace(0, 240, num=(self.cells + 1))
-        print(cell_space)
 
         for type in raw:
             vehicle_types_so_far.append(type)
@@ -290,7 +288,6 @@ class FreewheelingIntersectionEnv(gym.Env):
         """
         loss_time = []
         accumulated_waiting_time = []
-        speed = []
         queue = []
         reward = np.array([0.] * 3)
 
