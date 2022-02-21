@@ -11,7 +11,7 @@ import numpy as np
 import torch.optim as optim
 import random
 from agents.base_agent import Base_Agent
-from agents.net import DuelingDQN, ParamNet
+from agents.net_0 import DuelingDQN, GaussianPolicy
 from utilities.utilities import *
 
 
@@ -54,8 +54,7 @@ class PDQNBaseAgent(Base_Agent):
         self.learning_rate_ParamNet = self.hyperparameters['learning_rate_ParamNet']
         self.tau_actor = self.hyperparameters['tau_actor']
         self.tau_actor_param = self.hyperparameters['tau_actor_param']
-        self.adv_hidden_layers = self.hyperparameters['adv_hidden_layers']
-        self.val_hidden_layers = self.hyperparameters['val_hidden_layers']
+        self.hidden_layers = self.hyperparameters['adv_hidden_layers']
         self.param_hidden_layers = self.hyperparameters['param_hidden_layers']
         self.clip_grad = self.hyperparameters['clip_grad']
 
@@ -67,28 +66,28 @@ class PDQNBaseAgent(Base_Agent):
         # ----  Initialization  ----
         self.state_dim = self.env_parameters['phase_num'] * self.env_parameters['cells'] * 2
         self.param_state_dim = self.env_parameters['phase_num']
-        self.QNet = DuelingDQN(self.state_dim, self.num_actions, self.param_state_dim, self.adv_hidden_layers,
-                               self.val_hidden_layers).to(self.device)
-        self.QNet_target = DuelingDQN(self.state_dim, self.num_actions, self.param_state_dim, self.adv_hidden_layers,
-                                      self.val_hidden_layers).to(self.device)
-        hard_update(source=self.QNet, target=self.QNet_target)
-        self.QNet_target.eval()
+        self.Critic = DuelingDQN(self.state_dim, self.num_actions, self.param_state_dim, self.hidden_layers,
+                                 ).to(self.device)
+        self.Critic_target = DuelingDQN(self.state_dim, self.num_actions, self.param_state_dim, self.hidden_layers,
+                                        ).to(self.device)
+        hard_update(source=self.Critic, target=self.Critic_target)
+        self.Critic_target.eval()
 
-        self.ParamNet = ParamNet(self.state_dim, self.num_actions,
-                                 self.param_hidden_layers).to(self.device)
-        self.ParamNet_target = ParamNet(self.state_dim, self.num_actions,
-                                        self.param_hidden_layers).to(self.device)
-        hard_update(source=self.ParamNet, target=self.ParamNet_target)
-        self.ParamNet_target.eval()
+        self.Actor = GaussianPolicy(self.state_dim, self.num_actions,
+                                    self.param_hidden_layers).to(self.device)
+        self.Actor_target = GaussianPolicy(self.state_dim, self.num_actions,
+                                           self.param_hidden_layers).to(self.device)
+        hard_update(source=self.Actor, target=self.Actor_target)
+        self.Actor_target.eval()
 
         self.loss_func = self.hyperparameters['loss_func']
-        self.QNet_optimizer = optim.Adam(self.QNet.parameters(), lr=self.learning_rate_QNet)  # TODO more details
-        self.ParamNet_optimizer = optim.Adam(self.ParamNet.parameters(), lr=self.learning_rate_ParamNet)
+        self.Critic_optimizer = optim.Adam(self.Critic.parameters(), lr=self.learning_rate_QNet)  # TODO more details
+        self.Actor_optimizer = optim.Adam(self.Actor.parameters(), lr=self.learning_rate_ParamNet)
 
     def __str__(self):
         desc = super().__str__() + '\n'
-        desc += "Actor Network {}\n".format(self.QNet) + \
-                "Param Network {}\n".format(self.ParamNet) + \
+        desc += "Actor Network {}\n".format(self.Critic) + \
+                "Param Network {}\n".format(self.Actor) + \
                 "Actor Alpha: {}\n".format(self.learning_rate_QNet) + \
                 "Actor Param Alpha: {}\n".format(self.learning_rate_ParamNet) + \
                 "Gamma: {}\n".format(self.gamma) + \
@@ -109,7 +108,7 @@ class PDQNBaseAgent(Base_Agent):
             self.counts += 1
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(self.device)
-                all_action_params = self.ParamNet.forward(state)
+                all_action_params = self.Actor.forward(state)
                 print('all_action_params:', all_action_params)
 
                 # Hausknecht and Stone [2016] use epsilon greedy actions with uniform random action-parameter
@@ -119,7 +118,7 @@ class PDQNBaseAgent(Base_Agent):
                     all_action_params = torch.FloatTensor(np.random.randint(low=5, high=15 + 1,
                                                                             size=self.num_actions))
                 else:
-                    Q_a = self.QNet.forward(state.unsqueeze(0), all_action_params.unsqueeze(0))
+                    Q_a = self.Critic.forward(state.unsqueeze(0), all_action_params.unsqueeze(0))
                     print('Q_a', Q_a)
                     Q_a = Q_a.detach().data.numpy()
                     action = np.argmax(Q_a)
@@ -128,8 +127,8 @@ class PDQNBaseAgent(Base_Agent):
         else:
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(self.device)
-                all_action_params = self.ParamNet.forward(state)
-                Q_a = self.QNet.forward(state.unsqueeze(0), all_action_params.unsqueeze(0))
+                all_action_params = self.Actor.forward(state)
+                Q_a = self.Critic.forward(state.unsqueeze(0), all_action_params.unsqueeze(0))
                 Q_a = Q_a.detach().data.numpy()
                 action = np.argmax(Q_a)
                 all_action_params = all_action_params.cpu().data.numpy()
@@ -156,8 +155,8 @@ class PDQNBaseAgent(Base_Agent):
 
         # ----------------------------- optimize Q-network ------------------------------------
         with torch.no_grad():
-            pred_next_action_parameters = self.ParamNet_target.forward(next_states)
-            pred_Q_a = self.QNet_target(next_states, pred_next_action_parameters)
+            pred_next_action_parameters = self.Actor_target.forward(next_states)
+            pred_Q_a = self.Critic_target(next_states, pred_next_action_parameters)
             Qprime = torch.max(pred_Q_a, 1, keepdim=True)[0].squeeze()
             # 首先torch.max会返回一个nametuple(val, inx)因此[0],又因为keepdim=True,所以最终的size会和input一样，除了
             # 那个max的维度大小变为1，因此需要做一个squeeze()的操作
@@ -166,7 +165,7 @@ class PDQNBaseAgent(Base_Agent):
             target = rewards + (1 - dones) * self.gamma * Qprime
 
         # compute current Q-values using policy network
-        q_values = self.QNet(states, all_action_params)
+        q_values = self.Critic(states, all_action_params)
         y_predicted = q_values.gather(1, actions.view(-1, 1)).squeeze()
         # 这边很重要
         # 假设q_values = tensor([[1.1, 1.3],
@@ -180,17 +179,17 @@ class PDQNBaseAgent(Base_Agent):
         y_expected = target
         loss_Q = self.loss_func(y_predicted, y_expected)
 
-        self.QNet_optimizer.zero_grad()
+        self.Critic_optimizer.zero_grad()
         loss_Q.backward()
         if self.clip_grad > 0:
-            torch.nn.utils.clip_grad_norm_(self.QNet.parameters(), self.clip_grad)
-        self.QNet_optimizer.step()
+            torch.nn.utils.clip_grad_norm_(self.Critic.parameters(), self.clip_grad)
+        self.Critic_optimizer.step()
 
         # ------------------------------ optimize ParamActor --------------------------------
         with torch.no_grad():
-            action_params = self.ParamNet(states)
+            action_params = self.Actor(states)
         action_params.requires_grad = True
-        Q_val = self.QNet(states, action_params)
+        Q_val = self.Critic(states, action_params)
         Q_indexed = Q_val.gather(1, actions.unsqueeze(1))
         Q_loss = - torch.mean(Q_indexed)
 
@@ -204,24 +203,24 @@ class PDQNBaseAgent(Base_Agent):
         # self.actor_param.zero_grad()
         # out.backward(torch.ones(out.shape)).to(self.device)
 
-        self.ParamNet_optimizer.zero_grad()
+        self.Actor_optimizer.zero_grad()
         Q_loss.backward()
         if self.clip_grad > 0:
-            torch.nn.utils.clip_grad_norm_(self.ParamNet.parameters(), self.clip_grad)
-        self.ParamNet_optimizer.step()
+            torch.nn.utils.clip_grad_norm_(self.Actor.parameters(), self.clip_grad)
+        self.Actor_optimizer.step()
 
-        soft_update(source=self.QNet, target=self.QNet_target, tau=self.tau_actor)
-        soft_update(source=self.ParamNet, target=self.ParamNet_target, tau=self.tau_actor_param)
+        soft_update(source=self.Critic, target=self.Critic_target, tau=self.tau_actor)
+        soft_update(source=self.Actor, target=self.Actor_target, tau=self.tau_actor_param)
 
     def save_models(self, actor_path, actor_param_path):
-        torch.save(self.QNet.state_dict(), actor_path)
-        torch.save(self.ParamNet.state_dict(), actor_param_path)
+        torch.save(self.Critic.state_dict(), actor_path)
+        torch.save(self.Actor.state_dict(), actor_param_path)
         print('Models saved successfully')
 
     def load_models(self, actor_path, actor_param_path):
         # also try load on CPU if no GPU available?
-        self.QNet.load_state_dict(torch.load(actor_path, actor_param_path))
-        self.ParamNet.load_state_dict(torch.load(actor_path, actor_param_path))
+        self.Critic.load_state_dict(torch.load(actor_path, actor_param_path))
+        self.Actor.load_state_dict(torch.load(actor_path, actor_param_path))
         print('Models loaded successfully')
 
     def start_episode(self):

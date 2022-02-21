@@ -86,10 +86,7 @@ class Train_and_Evaluate(object):
                 state = self.env.reset()  # n_steps
 
                 while not done:
-                    if self.total_steps < self.randomly_pick_steps:
-                        action, all_action_param = self.agent.randomly_pick()
-                    else:
-                        action, all_action_param = self.agent.pick_action(state, self.train)
+                    action, all_action_param = self.agent.pick_action(state, self.train)
 
                     if self.ceil:
                         all_action_param = np.ceil(all_action_param)

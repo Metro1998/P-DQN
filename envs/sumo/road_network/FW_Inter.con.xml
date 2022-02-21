@@ -1,13 +1,13 @@
 <connections>
-  <connection from="north_in" to="east_out" fromLane="2" toLane="0" tl="SmartWolfie" linkIndex="0" contPos="0"/>
-  <connection from="north_in" to="east_out" fromLane="2" toLane="1" tl="SmartWolfie" linkIndex="1" contPos="0"/>
-  <connection from="north_in" to="east_out" fromLane="2" toLane="2" tl="SmartWolfie" linkIndex="2" contPos="0"/>
+  <connection from="north_in" to="west_out" fromLane="2" toLane="0" tl="SmartWolfie" linkIndex="0" contPos="0"/>
+  <connection from="north_in" to="west_out" fromLane="2" toLane="1" tl="SmartWolfie" linkIndex="1" contPos="0"/>
+  <connection from="north_in" to="west_out" fromLane="2" toLane="2" tl="SmartWolfie" linkIndex="2" contPos="0"/>
   <connection from="north_in" to="south_out" fromLane="1" toLane="0" tl="SmartWolfie" linkIndex="3" contPos="0"/>
   <connection from="north_in" to="south_out" fromLane="1" toLane="1" tl="SmartWolfie" linkIndex="4" contPos="0"/>
   <connection from="north_in" to="south_out" fromLane="1" toLane="2" tl="SmartWolfie" linkIndex="5" contPos="0"/>
-  <connection from="north_in" to="west_out" fromLane="0" toLane="0" tl="SmartWolfie" linkIndex="6" contPos="0"/>
-  <connection from="north_in" to="west_out" fromLane="0" toLane="1" tl="SmartWolfie" linkIndex="7" contPos="0"/>
-  <connection from="north_in" to="west_out" fromLane="0" toLane="2" tl="SmartWolfie" linkIndex="8" contPos="0"/>
+  <connection from="north_in" to="east_out" fromLane="0" toLane="0" tl="SmartWolfie" linkIndex="6" contPos="0"/>
+  <connection from="north_in" to="east_out" fromLane="0" toLane="1" tl="SmartWolfie" linkIndex="7" contPos="0"/>
+  <connection from="north_in" to="east_out" fromLane="0" toLane="2" tl="SmartWolfie" linkIndex="8" contPos="0"/>
 
   <connection from="east_in" to="south_out" fromLane="2" toLane="0" tl="SmartWolfie" linkIndex="9" contPos="0"/>
   <connection from="east_in" to="south_out" fromLane="2" toLane="1" tl="SmartWolfie" linkIndex="10" contPos="0"/>
