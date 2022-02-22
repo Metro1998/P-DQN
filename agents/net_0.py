@@ -57,6 +57,12 @@ class DuelingDQN(nn.Module):
 
         return val + adv - adv.mean(dim=1, keepdim=True)
 
+    def get_q1_q2(self, state, action_parameters):
+        q_duel1 = self.forward(state, action_parameters)
+        q_duel2 = self.forward(state, action_parameters)
+
+        return q_duel1, q_duel2
+
 
 class GaussianPolicy(nn.Module):
 

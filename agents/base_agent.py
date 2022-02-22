@@ -6,6 +6,7 @@ import random
 import numpy as np
 import torch
 import gym
+from torch.nn.utils import clip_grad_norm_
 
 
 class Base_Agent(object):
@@ -24,11 +25,13 @@ class Base_Agent(object):
         self.env_parameters = config.env_parameters
         self.hyperparameters = config.hyperparameters
         self.use_GPU = config.use_GPU
+        self.device = torch.device(self.hyperparameters['device'])
 
         self.file_to_save = config.file_to_save
         self.runs_per_agent = config.runs_per_agent
         self.standard_deviation_results = config.standard_deviation_results
         self.randomise_random_seed = config.randomise_random_seed
+        self.clip_grad_norm = 4.0
 
     def set_random_seeds(self, random_seed):
         """
@@ -46,6 +49,21 @@ class Base_Agent(object):
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(random_seed)
             torch.cuda.manual_seed(random_seed)
+
+    def optim_update(self, optimizer, objective):
+        """
+        Minimize the optimization objective via update the network parameters
+
+        :param optimizer:
+        :param objective:
+        :return:
+        """
+        optimizer.zero_grad()
+        objective.backend()
+        clip_grad_norm_(
+            parameters=optimizer.param_groups[0]["params"], max_norm=self.clip_grad_norm
+        )
+        optimizer.step()
 
     def pick_action(self, state):
         """
