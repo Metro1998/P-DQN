@@ -8,25 +8,26 @@
 import math
 
 import numpy as np
-import torch
 import torch.optim as optim
 import random
 from agents.base_agent import Base_Agent
-from agents.net_0 import DuelingDQN, GaussianPolicy
+from agents.net_v1 import DuelingDQN, GaussianPolicy
 from utilities.utilities import *
 
 
-class PDQNBaseAgent(Base_Agent):
+class P_DQN(Base_Agent):
     """
-    DDPG actor-critic agent for parameterized action spaces
-    [Hausknecht and Stone 2016]
+    soft actor-critic agent for parameterized action spaces
+
     """
 
     NAME = 'P-DQN Agent'
 
-    def __init__(self, config):
+    def __init__(self, config, env):
         Base_Agent.__init__(self, config)
-        self.action_dim = self.env_parameters['phase_num']
+
+        self.state_dim = env.observation_space.shape[0]
+        self.action_dim = env.action_space.shape[0]
 
         self.epsilon = self.hyperparameters['epsilon_initial']
         self.epsilon_initial = self.hyperparameters['epsilon_initial']
@@ -44,34 +45,27 @@ class PDQNBaseAgent(Base_Agent):
         self.tau_critic = self.hyperparameters['tau_actor']
         self.tau_actor = self.hyperparameters['tau_actor_param']
         self.hidden_layers = self.hyperparameters['adv_hidden_layers']
-        self.param_hidden_layers = self.hyperparameters['param_hidden_layers']
 
         self.counts = 0
+        self.updates = 2
 
         # ----  Initialization  ----
-        self.state_dim = self.env_parameters['phase_num'] * self.env_parameters['cells'] * 2
-        self.action_param_dim = self.env_parameters['phase_num']
-        self.critic = DuelingDQN(self.state_dim, self.action_dim, self.action_param_dim, self.hidden_layers,
+        self.critic = DuelingDQN(self.state_dim, self.action_dim, self.hidden_layers,
                                  ).to(self.device)
-        self.critic_target = DuelingDQN(self.state_dim, self.action_dim, self.action_param_dim, self.hidden_layers,
+        self.critic_target = DuelingDQN(self.state_dim, self.action_dim, self.hidden_layers,
                                         ).to(self.device)
         hard_update(source=self.critic, target=self.critic_target)
         self.critic_target.eval()
 
-        self.actor = GaussianPolicy(self.state_dim, self.action_dim,
-                                    self.param_hidden_layers).to(self.device)
-        self.actor_target = GaussianPolicy(self.state_dim, self.action_dim,
-                                           self.param_hidden_layers).to(self.device)
+        self.actor = GaussianPolicy(self.state_dim, self.action_dim, self.hidden_layers, env.action_space[0]
+                                    ).to(self.device)
+        self.actor_target = GaussianPolicy(self.state_dim, self.action_dim, self.hidden_layers, env.action_space[0]
+                                           ).to(self.device)
         hard_update(source=self.actor, target=self.actor_target)
         self.actor_target.eval()
 
-        self.alpha_log = torch.tensor(
-            (-np.log(self.action_param_dim) * np.e,),
-            dtype=torch.float32,
-            requires_grad=True,
-            device=self.device,
-        )
-        self.target_entropy = np.log(self.action_param_dim)
+        self.alpha_log = torch.FloatTensor(-np.log(self.action_dim) * np.e).to(self.device)
+        self.target_entropy = np.log(self.action_dim)
 
         self.criterion = torch.nn.SmoothL1Loss(reduction='mean')
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.lr_critic)
@@ -85,32 +79,29 @@ class PDQNBaseAgent(Base_Agent):
             self.counts += 1
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(self.device)
-                all_action_params = self.actor.forward(state)
-                print('all_action_params:', all_action_params)
+                action_params = self.actor.forward(state)
+                print('action_params:', action_params)
 
-                # Hausknecht and Stone [2016] use epsilon greedy actions with uniform random action-parameter
-                # exploration
                 if random.random() < self.epsilon:
                     action = np.random.randint(self.action_dim)
-                    all_action_params = torch.FloatTensor(np.random.randint(low=5, high=15 + 1,
-                                                                            size=self.action_dim))
+
                 else:
-                    Q_a = self.critic.forward(state.unsqueeze(0), all_action_params.unsqueeze(0))
+                    Q_a = self.critic.forward(state.unsqueeze(0), action_params.unsqueeze(0))
                     print('Q_a', Q_a)
                     Q_a = Q_a.detach().data.numpy()
                     action = np.argmax(Q_a)
 
-                all_action_params = all_action_params.cpu().data.numpy()
+                action_params = action_params.detach().data.numpy()
         else:
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(self.device)
-                all_action_params = self.actor.forward(state)
-                Q_a = self.critic.forward(state.unsqueeze(0), all_action_params.unsqueeze(0))
+                action_params = self.actor.forward(state)
+                Q_a = self.critic.forward(state.unsqueeze(0), action_params.unsqueeze(0))
                 Q_a = Q_a.detach().data.numpy()
                 action = np.argmax(Q_a)
-                all_action_params = all_action_params.cpu().data.numpy()
+                action_params = action_params.detach().data.numpy()
 
-        return action, all_action_params
+        return action, action_params
 
     def update_net(self, memory):
         """
@@ -118,24 +109,24 @@ class PDQNBaseAgent(Base_Agent):
 
         :return:
         """
-        if len(memory) < self.batch_size:
-            return
-        """objective of critic (loss function of critic)"""
-        obj_critic, states = self.get_obj_critic(memory)
-        self.optim_update(self.critic_optimizer, obj_critic)
-        soft_update(self.critic_target, self.critic, self.tau_critic)
+        if len(memory) > self.batch_size:
+            for i in range(self.updates):
+                """objective of critic (loss function of critic)"""
+                obj_critic, states = self.get_obj_critic(memory)
+                self.optim_update(self.critic_optimizer, obj_critic)
+                soft_update(self.critic_target, self.critic, self.tau_critic)
 
-        """objective of alpha (temperature parameter automatic adjustment)"""
-        action_params, logprob = self.actor.get_action_logprob(states)
-        obj_alpha = (
-                self.alpha_log * (logprob - self.target_entropy).detach()
-        ).mean()
-        self.optim_update(self.alpha_optimizer, obj_alpha)
+                """objective of alpha (temperature parameter automatic adjustment)"""
+                action_params, logprob = self.actor.get_action_logprob(states)
+                obj_alpha = (
+                        self.alpha_log * (logprob - self.target_entropy).detach()
+                ).mean()
+                self.optim_update(self.alpha_optimizer, obj_alpha)
 
-        """objective of actor"""
-        obj_actor = -(self.critic(states, action_params) + logprob * self.alpha_log.exp()).mean()
-        self.optim_update(self.actor_optimizer, obj_actor)
-        soft_update(self.actor_target, self.critic, self.tau_actor)
+                """objective of actor"""
+                obj_actor = -(self.critic(states, action_params) + logprob * self.alpha_log.exp()).mean()
+                self.optim_update(self.actor_optimizer, obj_actor)
+                soft_update(self.actor_target, self.critic, self.tau_actor)
 
     def get_obj_critic(self, memory):
         """
@@ -152,11 +143,11 @@ class PDQNBaseAgent(Base_Agent):
         next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device).squeeze()
         with torch.no_grad():
-            next_actions, next_log_prob = self.actor_target.get_action_logprob(next_states)
-            next_q = torch.min(*self.critic_target.get_q1_q2(next_states, action_parameters=next_actions))
+            next_action_params, next_log_prob = self.actor_target.get_action_logprob(next_states)
+            next_q = torch.min(self.critic_target.get_q1_q2(next_states, action_params=next_action_params))
 
             q_label = rewards + (1 - dones) * (next_q + next_log_prob * self.alpha)
-        q1, q2 = self.critic.get_q1_q2(states, action_parameters=action_params)
+        q1, q2 = self.critic.get_q1_q2(states, action_params=action_params)
         obj_critic = (self.criterion(q1, q_label) + self.criterion(q2, q_label)) / 2.0
         return obj_critic, states
 

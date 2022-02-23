@@ -19,25 +19,21 @@ def init_(m):
 
 class DuelingDQN(nn.Module):
 
-    def __init__(self, state_dim, action_dim, param_state_dim, hidden_layers=(256, 128, 64),
+    def __init__(self, state_dim, action_dim, hidden_layers=(256, 128, 64),
                  ):
         """
 
         :param state_dim:
         :param action_dim:
-        :param param_state_dim:
         :param hidden_layers:
         """
         super().__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
-        self.param_state_dim = param_state_dim
-
-        input_dim = self.state_dim + self.param_state_dim
 
         # initialize layers
         self.layers = nn.ModuleList()
-        self.layers.append(nn.Linear(input_dim, hidden_layers[0]))
+        self.layers.append(nn.Linear(self.state_dim + self.action_dim, hidden_layers[0]))
         self.layers.append(nn.ReLU())
         for i in range(1, len(hidden_layers)):
             self.layers.append(nn.Linear(hidden_layers[i - 1], hidden_layers[i]))
@@ -47,9 +43,9 @@ class DuelingDQN(nn.Module):
 
         self.apply(init_)
 
-    def forward(self, state, action_parameters):
+    def forward(self, state, action_params):
         # batch_size = x.size(0)
-        x = torch.cat((state, action_parameters), dim=1)
+        x = torch.cat((state, action_params), dim=1)
 
         x = self.layers(x)
         adv = self.adv_layers(x)
@@ -57,9 +53,9 @@ class DuelingDQN(nn.Module):
 
         return val + adv - adv.mean(dim=1, keepdim=True)
 
-    def get_q1_q2(self, state, action_parameters):
-        q_duel1 = self.forward(state, action_parameters)
-        q_duel2 = self.forward(state, action_parameters)
+    def get_q1_q2(self, state, action_params):
+        q_duel1 = self.forward(state, action_params)
+        q_duel2 = self.forward(state, action_params)
 
         return q_duel1, q_duel2
 
@@ -89,6 +85,7 @@ class GaussianPolicy(nn.Module):
         self.mean_layers = nn.Sequential(nn.Linear(hidden_layers[-1], self.action_dim))
         self.std_layers = nn.Sequential(nn.Linear(hidden_layers[-1], self.action_dim))
 
+        self.soft_plus = nn.Softplus()
         self.apply(init_)
 
         # action rescaling
@@ -113,8 +110,10 @@ class GaussianPolicy(nn.Module):
 
         noise = torch.randn_like(a_mean, requires_grad=True)
         a_noise = a_mean + a_std * noise
+
         action = self.action_scale * torch.tanh(a_noise) + self.action_bias
-        log_prob = a_std_log + self.log_sqrt_2pi + noise.pow(2).__mul__(0.5)
+
+        log_prob = a_std_log + np.log(np.sqrt(2 * np.pi)) + noise.pow(2).__mul__(0.5)
         log_prob += (np.log(2.) - a_noise - self.soft_plus(-2. * a_noise)) * 2.
         log_prob = log_prob.sum(1, keepdim=True)
 
