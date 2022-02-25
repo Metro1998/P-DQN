@@ -26,7 +26,7 @@ def generate_routefile(seed, demand: list):
     assert isinstance(demand[0], list), 'Wrong data structure, a list of lists is required.'
 
     random.seed(seed)
-    N = 3600  # number of time steps for one simulation
+    N = 1800  # number of time steps for one simulation
     assert N % len(demand) == 0, 'N should be divisible by len(demand).'
 
     with open('envs/sumo/road_network/FW_Inter.rou.xml', "w") as routes:
@@ -78,51 +78,51 @@ def generate_routefile(seed, demand: list):
             for j in range(int(N / len(demand))):
 
                 if random.uniform(0, 1) < pES:
-                    print('    <vehicle id="%i" type="ES_left" route="ES" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="ES_left" route="ES" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pEW:
-                    print('    <vehicle id="%i" type="EW_through" route="EW" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="EW_through" route="EW" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pNE:
-                    print('    <vehicle id="%i" type="NE_left" route="NE" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="NE_left" route="NE" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pNS:
-                    print('    <vehicle id="%i" type="NS_through" route="NS" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="NS_through" route="NS" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pWN:
-                    print('    <vehicle id="%i" type="WN_left" route="WN" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="WN_left" route="WN" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pWE:
-                    print('    <vehicle id="%i" type="WE_through" route="WE" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="WE_through" route="WE" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pSW:
-                    print('    <vehicle id="%i" type="SW_left" route="SW" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="SW_left" route="SW" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pSN:
-                    print('    <vehicle id="%i" type="SN_through" route="SN" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="SN_through" route="SN" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pEN:
-                    print('    <vehicle id="%i" type="EN_right" route="EN" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="EN_right" route="EN" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pNW:
-                    print('    <vehicle id="%i" type="NW_right" route="NW" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="NW_right" route="NW" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pWS:
-                    print('    <vehicle id="%i" type="WS_right" route="WS" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="WS_right" route="WS" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
                 if random.uniform(0, 1) < pSE:
-                    print('    <vehicle id="%i" type="SE_right" route="SE" depart="%i" departSpeed="max" />' % (
+                    print('    <vehicle id="%i" type="SE_right" route="SE" depart="%i" departSpeed="random" />' % (
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
         print("</routes>", file=routes)

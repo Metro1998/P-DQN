@@ -3,8 +3,7 @@
 import os.path
 
 import gym
-import numpy as np
-from agents.pdqn import PDQNBaseAgent
+from agents.pdqn import P_DQN
 from utilities.memory import ReplayBuffer
 from utilities.utilities import *
 from utilities.route_generator import generate_routefile
@@ -16,9 +15,10 @@ class Train_and_Evaluate(object):
         # Environment
         generate_routefile(seed=config.seed, demand=config.demand)
         self.env = gym.make(config.environment)
+        print(self.env.action_space[1].high)
 
         # Agent
-        self.agent = PDQNBaseAgent(config)
+        self.agent = P_DQN(config, self.env)
 
         # Memory
         self.replay_memory_size = config.hyperparameters['replay_memory_size']
@@ -56,7 +56,7 @@ class Train_and_Evaluate(object):
 
         :return:
         """
-        global i_episode
+
         rolling_scores_for_diff_runs = []
         file_to_save_actor = os.path.join(self.file_to_save, 'actor/')
         file_to_save_actor_param = os.path.join(self.file_to_save, 'actor_param/')
@@ -82,7 +82,7 @@ class Train_and_Evaluate(object):
                 # TODO
                 episode_reward = 0
                 episode_steps = 0
-                done = False
+                done = 0
                 state = self.env.reset()  # n_steps
 
                 while not done:
@@ -90,11 +90,12 @@ class Train_and_Evaluate(object):
 
                     if self.ceil:
                         all_action_param = np.ceil(all_action_param)
+
                     action_for_env = [action, list(all_action_param)]
                     print(action_for_env)
                     if len(self.memory) > self.batch_size:
                         for i in range(self.updates_per_step):
-                            self.agent.optimize_td_loss(self.memory)
+                            self.agent.update_net(self.memory)
                             self.total_updates += 1
 
                     next_state, reward, done, _ = self.env.step(action_for_env)

@@ -50,21 +50,6 @@ class Base_Agent(object):
             torch.cuda.manual_seed_all(random_seed)
             torch.cuda.manual_seed(random_seed)
 
-    def optim_update(self, optimizer, objective):
-        """
-        Minimize the optimization objective via update the network parameters
-
-        :param optimizer:
-        :param objective:
-        :return:
-        """
-        optimizer.zero_grad()
-        objective.backend()
-        clip_grad_norm_(
-            parameters=optimizer.param_groups[0]["params"], max_norm=self.clip_grad_norm
-        )
-        optimizer.step()
-
     def pick_action(self, state):
         """
         Determines which action to take when given state

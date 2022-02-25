@@ -3,103 +3,128 @@
 
 """
   Ref: https://github.com/cycraig/MP-DQN/blob/master/agents/pdqn.py
+       https://github.com/AI4Finance-Foundation/ElegantRL/blob/master/elegantrl/net.py
 """
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import numpy as np
+
+
+def init_(m):
+    if isinstance(m, nn.Linear):
+        nn.init.kaiming_normal_(m.weight)
+        nn.init.zeros_(m.bias)
 
 
 class DuelingDQN(nn.Module):
 
-    def __init__(self, state_dim, action_dim, param_state_dim, adv_hidden_layers=(256, 128, 64),
-                 val_hidden_layers=(256, 128, 64)):
+    def __init__(self, state_dim, action_dim, hidden_layers=(256, 128, 64),
+                 ):
         """
 
         :param state_dim:
         :param action_dim:
-        :param param_state_dim:
-        :param adv_hidden_layers:
-        :param val_hidden_layers
+        :param hidden_layers:
         """
         super().__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
-        self.param_state_dim = param_state_dim
 
-        # create layers
-        self.adv_layers = nn.ModuleList()
-        self.val_layers = nn.ModuleList()
-        input_size = self.state_dim + self.param_state_dim
+        # initialize layers
+        self.layers = nn.ModuleList()
+        self.layers.append(nn.Linear(self.state_dim + self.action_dim, hidden_layers[0]))
+        self.layers.append(nn.ReLU())
+        for i in range(1, len(hidden_layers)):
+            self.layers.append(nn.Linear(hidden_layers[i - 1], hidden_layers[i]))
+            self.layers.append(nn.ReLU())
+        self.adv_layers = nn.Sequential(nn.Linear(hidden_layers[-1], self.action_dim))
+        self.val_layers = nn.Sequential(nn.Linear(hidden_layers[-1], 1))
 
-        # adv_layers
-        self.adv_layers.append(nn.Linear(input_size, adv_hidden_layers[0]))
-        for i in range(1, len(adv_hidden_layers)):
-            self.adv_layers.append(nn.Linear(adv_hidden_layers[i - 1], adv_hidden_layers[i]))
-        self.adv_layers.append(nn.Linear(adv_hidden_layers[-1], self.action_dim))
+        self.apply(init_)
 
-        # initialize adv_layer weights
-        for i in range(0, len(self.adv_layers)):
-            nn.init.kaiming_normal_(self.adv_layers[i].weight, nonlinearity='relu')
-            nn.init.zeros_(self.adv_layers[i].bias)
-
-        # val_layers
-        self.val_layers.append(nn.Linear(input_size, val_hidden_layers[0]))
-        for i in range(1, len(val_hidden_layers)):
-            self.val_layers.append(nn.Linear(val_hidden_layers[i - 1], val_hidden_layers[i]))
-        self.val_layers.append(nn.Linear(val_hidden_layers[-1], 1))
-
-        # initialize val_layer weights
-        for i in range(0, len(self.val_layers)):
-            nn.init.kaiming_normal_(self.val_layers[i].weight, nonlinearity='relu')
-            nn.init.zeros_(self.val_layers[i].bias)
-
-    def forward(self, state, action_parameters):
+    def forward(self, state, action_params):
         # batch_size = x.size(0)
-        x = torch.cat((state, action_parameters), dim=1)
-
-        adv = x
-        for i in range(0, len(self.adv_layers) - 1):
-            adv = F.relu(self.adv_layers[i](adv))
-        adv = self.adv_layers[-1](adv)
-
-        val = x
-        for i in range(0, len(self.val_layers) - 1):
-            val = F.relu(self.val_layers[i](val))
-        val = self.val_layers[-1](val)
+        x = torch.cat((state, action_params), dim=1)
+        for i in range(len(self.layers)):
+            x = self.layers[i](x)
+        adv = self.adv_layers(x)
+        val = self.val_layers(x)
 
         return val + adv - adv.mean(dim=1, keepdim=True)
 
+    def get_q1_q2(self, state, action_params):
+        q_duel1 = self.forward(state, action_params)
+        q_duel2 = self.forward(state, action_params)
 
-class ParamNet(nn.Module):
+        return q_duel1, q_duel2
 
-    def __init__(self, state_dim, param_state_dim, param_hidden_layers):
+
+class GaussianPolicy(nn.Module):
+
+    def __init__(self, state_dim, action_dim, hidden_layers=(256, 128, 64), action_space=None,
+                 ):
         """
 
         :param state_dim:
-        :param param_state_dim:
-        :param param_hidden_layers:
+        :param action_dim:
+        :param hidden_layers:
         """
-        super(ParamNet, self).__init__()
+        super().__init__()
 
         self.state_dim = state_dim
-        self.param_state_dim = param_state_dim
+        self.action_dim = action_dim
 
-        # create layers
+        # initialize layers
         self.layers = nn.ModuleList()
-        self.layers.append(nn.Linear(self.state_dim, param_hidden_layers[0]))
-        for i in range(1, len(param_hidden_layers)):
-            self.layers.append(nn.Linear(param_hidden_layers[i - 1], param_hidden_layers[i]))
-        self.layers.append(nn.Linear(param_hidden_layers[-1], self.param_state_dim))
+        self.layers.append(nn.Linear(state_dim, hidden_layers[0]))
+        self.layers.append(nn.ReLU())
+        for i in range(1, len(hidden_layers)):
+            self.layers.append(nn.Linear(hidden_layers[i - 1], hidden_layers[i]))
+            self.layers.append(nn.ReLU())
+        self.mean_layers = nn.Sequential(nn.Linear(hidden_layers[-1], self.action_dim))
+        self.std_layers = nn.Sequential(nn.Linear(hidden_layers[-1], self.action_dim))
 
-        # initialize layer weights
-        for i in range(0, len(self.layers)):
-            nn.init.kaiming_normal_(self.layers[i].weight, nonlinearity='relu')
-            nn.init.zeros_(self.layers[i].bias)
+        self.soft_plus = nn.Softplus()
+        self.apply(init_)
+
+        # action rescaling
+        if action_space is None:
+            self.action_scale = torch.tensor(1.)
+            self.action_bias = torch.tensor(0.)
+        else:
+            self.action_scale = torch.FloatTensor(
+                (action_space.high - action_space.low) / 2.)
+            self.action_bias = torch.FloatTensor(
+                (action_space.high + action_space.low) / 2.)
 
     def forward(self, state):
         x = state
-        for i in range(len(self.layers) - 1):
-            x = F.relu(self.layers[i](x))
+        for i in range(len(self.layers)):
+            x = self.layers[i](x)
+        a_mean = self.mean_layers(x)
+        a_std_log = self.std_layers(x).clamp(-20, 2)
+        return a_mean, a_std_log
 
-        return torch.sigmoid(self.layers[-1](x)) * 10 + 5
+    def get_action(self, state):
+        x = state
+        for i in range(len(self.layers)):
+            x = self.layers[i](x)
+        a_mean = self.mean_layers(x)
+        a_std = self.std_layers(x).clamp(-20, 2).exp()
+        return self.action_scale * torch.normal(a_mean, a_std).tanh() + self.action_bias # re-parameterize
+
+    def get_action_logprob(self, state):
+        a_mean, a_std_log = self.forward(state)
+        a_std = a_std_log.exp()
+
+        noise = torch.randn_like(a_mean, requires_grad=True)
+        a_noise = a_mean + a_std * noise
+
+        action = self.action_scale * torch.tanh(a_noise) + self.action_bias
+
+        log_prob = a_std_log + np.log(np.sqrt(2 * np.pi)) + noise.pow(2).__mul__(0.5)
+        log_prob += (np.log(2.) - a_noise - self.soft_plus(-2. * a_noise)) * 2.
+        log_prob = log_prob.sum(1, keepdim=True)
+
+        return action, log_prob

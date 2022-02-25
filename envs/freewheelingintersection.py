@@ -93,10 +93,10 @@ class FreewheelingIntersectionEnv(gym.Env):
             [9, None, 9, 9, 9, 18, 9, 19],
             [10, 10, None, 10, 20, 10, 21, 10],
             [11, 11, 11, None, 11, 22, 11, 23],
-            [21, 12, 17, 12, None, 12, 12, 12],
-            [13, 23, 13, 19, 13, None, 13, 13],
-            [20, 14, 16, 14, 14, 14, None, 14],
-            [15, 22, 15, 18, 15, 15, 15, None]
+            [24, 12, 25, 12, None, 12, 12, 12],
+            [13, 26, 13, 27, 13, None, 13, 13],
+            [28, 14, 29, 14, 14, 14, None, 14],
+            [15, 30, 15, 31, 15, 15, 15, None]
         ])
 
         self.lane_length = 240.
@@ -211,9 +211,9 @@ class FreewheelingIntersectionEnv(gym.Env):
         self.action_old = copy.deepcopy(action)
 
         if self.episode_steps > self.simulation_steps:
-            done = True
+            done = 1
         else:
-            done = False
+            done = 0
         info = {}
         print(state)
         return state, reward, done, info

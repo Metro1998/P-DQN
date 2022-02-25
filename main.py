@@ -46,9 +46,9 @@ config.env_parameters = {
 }
 config.hyperparameters = {
     'device': 'cuda' if torch.cuda.is_available() else 'cpu',
-    'epsilon_initial': 0.5,
+    'epsilon_initial': 0.2,
     'epsilon_final': 0.01,
-    'epsilon_decay': 10000,
+    'epsilon_decay': 1000,
     'replay_memory_size': 1e5,
     'initial_memory_threshold': 0,
     'batch_size': 256,
@@ -59,7 +59,8 @@ config.hyperparameters = {
     'loss_func': F.smooth_l1_loss,
     'tau_actor': 0.01,
     'tau_actor_param': 0.01,
-    'hidden_layers': (256, 128, 64),
+    'adv_hidden_layers': (256, 128, 64),
+    'val_hidden_layers': (256, 128, 64),
     'param_hidden_layers': (256, 128, 64),
     'random_pick_steps': 200,
     'updates_per_step': 1,
