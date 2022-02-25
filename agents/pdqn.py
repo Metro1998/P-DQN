@@ -33,33 +33,30 @@ class P_DQN(Base_Agent):
         self.epsilon_initial = self.hyperparameters['epsilon_initial']
         self.epsilon_final = self.hyperparameters['epsilon_final']
         self.epsilon_decay = self.hyperparameters['epsilon_decay']
-
-        self.initial_memory_threshold = self.hyperparameters['initial_memory_threshold']
         self.batch_size = self.hyperparameters['batch_size']
-
         self.gamma = self.hyperparameters['gamma']
-        self.alpha = 1.  # TODO
 
-        self.lr_critic = self.hyperparameters['learning_rate_QNet']
-        self.lr_actor = self.hyperparameters['learning_rate_ParamNet']
-        self.tau_critic = self.hyperparameters['tau_actor']
-        self.tau_actor = self.hyperparameters['tau_actor_param']
-        self.hidden_layers = self.hyperparameters['adv_hidden_layers']
+        self.lr_critic = self.hyperparameters['lr_critic']
+        self.lr_actor = self.hyperparameters['lr_actor']
+        self.tau_critic = self.hyperparameters['tau_critic']
+        self.tau_actor = self.hyperparameters['tau_actor']
+        self.critic_hidden_layers = self.hyperparameters['critic_hidden_layers']
+        self.actor_hidden_layers = self.hyperparameters['actor_hidden_layers']
 
         self.counts = 0
 
         # ----  Initialization  ----
-        self.critic = DuelingDQN(self.state_dim, self.action_dim, self.hidden_layers,
+        self.critic = DuelingDQN(self.state_dim, self.action_dim, self.critic_hidden_layers,
                                  ).to(self.device)
-        self.critic_target = DuelingDQN(self.state_dim, self.action_dim, self.hidden_layers,
+        self.critic_target = DuelingDQN(self.state_dim, self.action_dim, self.critic_hidden_layers,
                                         ).to(self.device)
         hard_update(source=self.critic, target=self.critic_target)
         self.critic_target.eval()
 
-        self.actor = GaussianPolicy(self.state_dim, self.action_dim, self.hidden_layers, env.action_space[1]
+        self.actor = GaussianPolicy(self.state_dim, self.action_dim, self.actor_hidden_layers, env.action_space[1]
                                     ).to(self.device)
-        self.actor_target = GaussianPolicy(self.state_dim, self.action_dim, self.hidden_layers, env.action_space[1]
-                                           ).to(self.device)
+        self.actor_target = GaussianPolicy(self.state_dim, self.action_dim, self.actor_hidden_layers,
+                                           env.action_space[1]).to(self.device)
         hard_update(source=self.actor, target=self.actor_target)
         self.actor_target.eval()
 
@@ -114,7 +111,7 @@ class P_DQN(Base_Agent):
         """
         if len(memory) > self.batch_size:
             """objective of critic (loss function of critic)"""
-            obj_critic, states = self.get_obj_critic(memory)
+            obj_critic, states = self.get_obj_critic(memory, self.alpha_log.exp())
             self.critic_optimizer.zero_grad()
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10)
             obj_critic.backward()
@@ -136,10 +133,11 @@ class P_DQN(Base_Agent):
             torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10)
             obj_actor.backward()
 
-    def get_obj_critic(self, memory):
+    def get_obj_critic(self, memory, alpha):
         """
         Calculate the loss of critic networks with **uniform sampling**.
 
+        :param alpha:
         :param memory:
         :return:
         """
@@ -157,7 +155,7 @@ class P_DQN(Base_Agent):
             next_q = torch.min(*self.critic_target.get_q1_q2(next_states, action_params=next_action_params))
             next_q = torch.max(next_q, 1, keepdim=True)[0]
 
-            q_label = rewards + (1 - dones) * (next_q + next_log_prob * self.alpha)
+            q_label = rewards + (1 - dones) * (next_q + next_log_prob * alpha)
         q1, q2 = self.critic.get_q1_q2(states, action_params=action_params)
         q1_predicted = q1.gather(1, actions.view(-1, 1))
         q2_predicted = q2.gather(1, actions.view(-1, 1))

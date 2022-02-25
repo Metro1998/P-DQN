@@ -15,7 +15,6 @@ class Train_and_Evaluate(object):
         # Environment
         generate_routefile(seed=config.seed, demand=config.demand)
         self.env = gym.make(config.environment)
-        print(self.env.action_space[1].high)
 
         # Agent
         self.agent = P_DQN(config, self.env)
@@ -28,7 +27,6 @@ class Train_and_Evaluate(object):
 
         self.total_steps = 0
         self.total_updates = 0
-        self.randomly_pick_steps = config.hyperparameters['random_pick_steps']
 
         self.save_freq = config.save_freq
         self.file_to_save = config.file_to_save
@@ -81,17 +79,19 @@ class Train_and_Evaluate(object):
                 # We temporarily regard reward and scores as the same thing
                 # TODO
                 episode_reward = 0
+                episode_rewards = []
                 episode_steps = 0
                 done = 0
                 state = self.env.reset()  # n_steps
 
                 while not done:
-                    action, all_action_param = self.agent.pick_action(state, self.train)
+                    action, action_params = self.agent.pick_action(state, self.train)
 
                     if self.ceil:
-                        all_action_param = np.ceil(all_action_param)
+                        action_params = np.ceil(action_params)
+                    print(action_params)
 
-                    action_for_env = [action, list(all_action_param)]
+                    action_for_env = [action, list(action_params)[action]]
                     print(action_for_env)
                     if len(self.memory) > self.batch_size:
                         for i in range(self.updates_per_step):
@@ -103,14 +103,15 @@ class Train_and_Evaluate(object):
                     episode_steps += 1
                     print(episode_reward)
                     episode_reward += reward
+                    episode_rewards.append(episode_reward)
 
                     self.total_steps += 1
 
-                    self.memory.push(state, action, all_action_param, reward, next_state, done)
+                    self.memory.push(state, action, action_params, reward, next_state, done)
 
                     state = next_state
 
-                episode_score_so_far = episode_reward
+                episode_score_so_far = np.mean(episode_rewards)
                 game_full_episodes_scores.append(episode_score_so_far)
                 game_full_episodes_rolling_scores.append(
                     np.mean(game_full_episodes_scores[-1 * self.rolling_score_window:]))

@@ -31,13 +31,13 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
 
     Observation:
         Type: Box(512)
-        # 512 = 32 * 8 * 2
+        # 512 = 32 * 8
         # 32 cells in one phase, 8 phases, 2 specific items, speed and location.
         # When vehicles are absent in one specific cell, pad it with 0. and 0. w.r.t position and speed.
         Num  Observation                   Min      Max
-        0    Phase_0 queue                 0.       50.
+        0    Phase_0 position               0.       1.
                             ...
-        7    Phase_7 queue                 0.       50.
+        7    Phase_7 position               0.       1.
 
     Actions:
         Type: Discrete(8)
@@ -52,16 +52,9 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         7     W_straight_left
 
     -------------- PLUS ----------
-        Type: Box(8)
-        Num   Action              Min      Max
-        0     NS_straight          10       25
-        1     EW_straight          10       25
-        2     NS_left              10       25
-        3     EW_left              10       25
-        4     N_straight_left      10       25
-        5     E_straight_left      10       25
-        6     S_straight_left      10       25
-        7     W_straight_left      10       25
+        Type: Box(1)
+        Num   Action                                           Min      Max
+        0     The duration of phase you have selected          10       30
 
     Reward:
         A combination between vehicle's loss time and queue in one specific phase.
@@ -75,6 +68,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
 
     def __init__(self):
         self.phase_num = 8
+        self.cells = 32
 
         # the edgeID is defined in FW_Inter.edg.xml
         # as you may have different definition in your own .edg.xml, change it in config.
@@ -91,10 +85,10 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
             [9, None, 9, 9, 9, 18, 9, 19],
             [10, 10, None, 10, 20, 10, 21, 10],
             [11, 11, 11, None, 11, 22, 11, 23],
-            [21, 12, 17, 12, None, 12, 12, 12],
-            [13, 23, 13, 19, 13, None, 13, 13],
-            [20, 14, 16, 14, 14, 14, None, 14],
-            [15, 22, 15, 18, 15, 15, 15, None]
+            [24, 12, 25, 12, None, 12, 12, 12],
+            [13, 26, 13, 27, 13, None, 13, 13],
+            [28, 14, 29, 14, 14, 14, None, 14],
+            [15, 30, 15, 31, 15, 15, 15, None]
         ])
 
         self.lane_length = 240.
@@ -112,16 +106,16 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
 
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.phase_num),
-            spaces.Box(low=np.array([10]), high=np.array([25]), dtype=np.float32)
+            spaces.Box(low=np.array([10]), high=np.array([30]), dtype=np.float32)
         ))
 
-        observation_low_queue = np.array([0.] * self.phase_num)
+        observation_low = np.array([0.] * (self.phase_num * self.cells))
 
-        observation_high_queue = np.array([50.] * self.phase_num)
+        observation_high = np.array([1.] * (self.phase_num * self.cells))
 
         self.observation_space = spaces.Box(
-            low=observation_low_queue,
-            high=observation_high_queue,
+            low=observation_low,
+            high=observation_high,
             dtype=np.float32
         )
         seed = 1
@@ -175,8 +169,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         """
 
         phase_next = action[0]
-        print(phase_next)
-        phase_duration = action[1][phase_next]
+        phase_duration = int(action[1])
 
         # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml.
         # We achieve hybrid action space control through switch its phase and steps
@@ -190,7 +183,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
                 self.sumo_step()
 
         traci.trafficlight.setPhase('SmartWolfie', phase_next)
-        for t in range(int(np.ceil(phase_duration))):
+        for t in range(phase_duration):
             self.sumo_step()
 
         raw = self.retrieve_raw_info()
@@ -205,11 +198,10 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         self.action_old = copy.deepcopy(action)
 
         if self.episode_steps > self.simulation_steps:
-            done = True
+            done = 1
         else:
-            done = False
+            done = 0
         info = {}
-        print(state)
         return state, reward, done, info
 
     def retrieve_raw_info(self):
@@ -256,18 +248,19 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         """
 
         vehicle_types_so_far = []
-        queue_ = np.array([])
+        state = np.array([])
+        cell_space = np.linspace(0, 240, num=(self.cells + 1))
 
         for type in raw:
             vehicle_types_so_far.append(type)
         for vehicle_type in self.vehicle_types:
-            queue = 0
+            position = np.zeros(self.cells)
             if vehicle_type in vehicle_types_so_far:
                 for vehicle in raw.get(vehicle_type):
-                    queue += 1
-            queue_ = np.concatenate((queue_, queue), axis=0)
+                    position[bisect_left(cell_space, vehicle[1]) - 1] = 1.
+            state = np.concatenate((state, position), axis=0)
 
-        return queue_
+        return state
 
     def retrieve_reward(self, raw):
         """

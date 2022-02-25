@@ -28,11 +28,8 @@ class Config(object):
         self.demand = None
         self.ceil = True
         self.env_parameters = {
-            'phase_num': 8,
-            'action_low': 5.,
-            'action_high': 20.,
             'cells': 32,
-            'lane_length_high': 250.,
+            'lane_length_high': 240.,
             'speed_high': 100.,
             'edge_ids': ['north_in', 'east_in', 'south_in', 'west_in'],
             'vehicles_types': ['NW_right', 'NS_through', 'NE_left',
@@ -47,25 +44,22 @@ class Config(object):
 
         self.hyperparameters = {
             'device': 'cuda' if torch.cuda.is_available() else 'cpu',
-            'epsilon_initial': 1.0,
-            'epsilon_final': 0.05,
+            'epsilon_initial': 0.3,
+            'epsilon_final': 0.01,
             'epsilon_decay': 5000,
             'replay_memory_size': 1e6,
-            'initial_memory_threshold': 0,
             'batch_size': 64,
             'gamma': 0.99,
-            'learning_rate_QNet': 1e-4,
-            'learning_rate_ParamNet': 1e-5,
-            'clip_grad': 10,
-            'loss_func': F.smooth_l1_loss,
+            'lr_critic': 1e-5,
+            'lr_actor': 1e-4,
+            'lr_alpha': 1e-5,
             'tau_actor': 0.01,
-            'tau_actor_param': 0.01,
-            'adv_hidden_layers': (256, 128, 64),
-            'val_hidden_layers': (256, 128, 64),
-            'param_hidden_layers': (256, 128, 64),
+            'tau_critic': 0.01,
+            'critic_hidden_layers': (256, 128, 64),
+            'actor_hidden_layers': (256, 128, 64),
             'random_pick_steps': 10000,
-            'updates_per_step': 1,
-            'maximum_episodes': 500,
+            'updates_per_step': 2,
+            'maximum_episodes': 2000,
         }
 
         self.agent_to_color_dictionary = {
