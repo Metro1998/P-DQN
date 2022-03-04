@@ -52,7 +52,7 @@ class Config(object):
             'gamma': 0.99,
             'lr_critic': 1e-5,
             'lr_actor': 1e-4,
-            'lr_alpha': 1e-5,
+            'lr_alpha': 1e-2,
             'tau_actor': 0.01,
             'tau_critic': 0.01,
             'critic_hidden_layers': (256, 128, 64),
@@ -60,6 +60,7 @@ class Config(object):
             'random_pick_steps': 10000,
             'updates_per_step': 2,
             'maximum_episodes': 2000,
+            'alpha': 0.2,
         }
 
         self.agent_to_color_dictionary = {

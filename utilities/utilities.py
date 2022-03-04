@@ -58,7 +58,7 @@ def visualize_overall_agent_results(agent_results, agent_name, show_mean_and_std
     ax.set_ylabel('Rolling Episode Scores')
     ax.set_xlabel('Episode Number')
     for spine in ['right', 'top']:
-        ax.spines[spine].set_visibl(False)
+        ax.spines[spine].set_visible(False)
     ax.set_xlim([0, x_vals[-1]])
 
     y_limits = get_y_limits(agent_results)
@@ -89,7 +89,7 @@ def get_mean_and_standard_deviation_difference(results, standard_deviation_resul
     mean_results = [np.mean(get_results_at_a_time_step(results, timestep)) for timestep in range(len(results[0]))]
     mean_minus_x_std = [mean_val - standard_deviation_results * get_std_at_a_time_step(results, timestep)
                         for timestep, mean_val in enumerate(mean_results)]
-    mean_plus_x_std = [mean_val - standard_deviation_results * get_std_at_a_time_step(results, timestep)
+    mean_plus_x_std = [mean_val + standard_deviation_results * get_std_at_a_time_step(results, timestep)
                        for timestep, mean_val in enumerate(mean_results)]
     return mean_minus_x_std, mean_results, mean_plus_x_std
 

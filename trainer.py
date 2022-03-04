@@ -58,7 +58,7 @@ class Train_and_Evaluate(object):
         rolling_scores_for_diff_runs = []
         file_to_save_actor = os.path.join(self.file_to_save, 'actor/')
         file_to_save_actor_param = os.path.join(self.file_to_save, 'actor_param/')
-        file_to_save_runs = os.path.join(self.file_to_save, 'runs/')
+        file_to_save_runs = os.path.join(self.file_to_save, 'runs_1/')
         file_to_save_rolling_scores = os.path.join(self.file_to_save, 'rolling_scores/')
         os.makedirs(file_to_save_actor, exist_ok=True)
         os.makedirs(file_to_save_actor_param, exist_ok=True)
@@ -76,42 +76,39 @@ class Train_and_Evaluate(object):
                     actor_param_path = os.path.join(file_to_save_actor_param, 'episode{}'.format(i_episode))
                     self.agent.save_models(actor_path, actor_param_path)
 
-                # We temporarily regard reward and scores as the same thing
-                # TODO
-                episode_reward = 0
-                episode_rewards = []
+                episode_score = []
                 episode_steps = 0
                 done = 0
                 state = self.env.reset()  # n_steps
 
                 while not done:
-                    action, action_params = self.agent.pick_action(state, self.train)
-
-                    if self.ceil:
-                        action_params = np.ceil(action_params)
-                    print(action_params)
-
-                    action_for_env = [action, list(action_params)[action]]
-                    print(action_for_env)
                     if len(self.memory) > self.batch_size:
-                        for i in range(self.updates_per_step):
-                            self.agent.update_net(self.memory)
-                            self.total_updates += 1
+                        action, action_params = self.agent.select_action(state, self.train)
+                        if self.ceil:
+                            action_params = np.ceil(action_params).squeeze(0)
 
-                    next_state, reward, done, _ = self.env.step(action_for_env)
+                        action_for_env = [action, int(action_params[action])]
+
+                        for i in range(self.updates_per_step):
+                            self.agent.update(self.memory)
+                            self.total_updates += 1
+                    else:
+                        action_params = np.random.randint(low=10, high=31, size=8)
+                        action = np.random.randint(7, size=1)[0]
+                        action_for_env = [action, action_params[action]]
+
+                    next_state, reward, done, info = self.env.step(action_for_env)
+                    print(reward)
 
                     episode_steps += 1
-                    print(episode_reward)
-                    episode_reward += reward
-                    episode_rewards.append(episode_reward)
+                    episode_score.append(info)
 
                     self.total_steps += 1
-
                     self.memory.push(state, action, action_params, reward, next_state, done)
 
                     state = next_state
 
-                episode_score_so_far = np.mean(episode_rewards)
+                episode_score_so_far = np.mean(episode_score)
                 game_full_episodes_scores.append(episode_score_so_far)
                 game_full_episodes_rolling_scores.append(
                     np.mean(game_full_episodes_scores[-1 * self.rolling_score_window:]))

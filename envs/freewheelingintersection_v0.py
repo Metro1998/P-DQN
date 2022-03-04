@@ -3,9 +3,9 @@
 # happy to be single!
 # 暂时不考虑加入参数
 # 先实现自己的状态空间，之后的（更多丰富的接口需要去完善一下）
-import math
 
 import gym
+import os
 import numpy as np
 import sys
 import random
@@ -51,11 +51,11 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         Num   Action                                           Min      Max
         0     The duration of phase you have selected          10       30
     Reward:
-        Mean travel time of vehicles depart the ''input edge'' during this signal stage.
+        A combination between vehicle's loss time and queue in one specific phase.
     Starting State:
         Initialization according to sumo, actually there is no vehicles at the beginning
     Episode Termination:
-        Episode length is greater than SIMULATION_STEPS(1800 in default, for half an hour).
+        Episode length is greater than SIMULATION_STEPS(3600 in default, for one hour).
     """
 
     def __init__(self):
@@ -84,18 +84,15 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         ])
 
         self.lane_length = 240.
+        self.action_pre = None
+        self.vehicle_IDs_present = None
         self.yellow = 3
         self.max_queuing_speed = 1.
         self.simulation_steps = 1800
+
+        # when step() we will save last 'self.N_STEPS' states for state representation
+
         self.episode_steps = 0
-
-        self.action_pre = None
-        self.vehicle_pre = None
-
-        self.bonus = 25
-        self.latitude = 30
-        self.punish_scale = 1
-        self.punish_threshold = 30
 
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.phase_num),
@@ -104,9 +101,10 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
 
         observation_low = np.array([0.] * (self.phase_num * self.cells))
         observation_high = np.array([1.] * (self.phase_num * self.cells))
+
         self.observation_space = spaces.Box(low=observation_low, high=observation_high, dtype=np.float32)
 
-        seed = 1
+        seed = 123456
         self.seed(seed)
 
         # declare the path to sumo/tools
@@ -118,14 +116,13 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         Connect with the sumo instance, could be multiprocess.
         :return: dic, speed and position of different vehicle types
         """
-        # print(os.getcwd())
         path = 'envs/sumo/road_network/FW_Inter.sumocfg'
 
         # create instances
         traci.start(['sumo', '-c', path], label='sim1')
         self.episode_steps = 0
         self.action_pre = []
-        self.vehicle_pre = []
+        self.vehicle_IDs_present = []
         raw = self.retrieve_raw_info()
         state = self.retrieve_state(raw)
 
@@ -143,26 +140,25 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         """
         Note: the sumo(or traci) doesn't need an action every step until one specific phase is over,
               but the abstract method 'step()' needs as you can see.
-              Thus only a new action is input will we change the traffic light state, otherwise just do
+              Thus only a new action is input will we change the traffic signal state, otherwise just do
               traci.simulationStep() consecutively.
-        :param action:list, e.g. [4, [12, 11, 13, 15, 10, 12, 16, 23]],
-                             the first element is the phase next period,
-                             and the latter ones are duration w.r.t all phases.
+        :param action:list, e.g. [4, 12],
+                             the first element is the signal stage next period,
+                             and the latter one is its duration
         :return: next_state, reward, done, info
         """
 
         stage_next = action[0]
         stage_duration = action[1]
 
-        # SmartWolfie is a traffic signal control program defined in FW_Inter.add.xml.
-        # We achieve hybrid action space control through switch its stage and steps
+        # SmartWolfie is a traffic light control program defined in FW_Inter.add.xml.
+        # We achieve hybrid action space control through switch its phase and steps
         # (controlled by YELLOW(3s in default) and GREEN(stage_duration)).
-        # There is possibility that stage next period is same with the stage right now
-        # Otherwise there is a yellow between two different stages.
-
+        # There is possibility that phase next period is same with the phase right now
+        # Otherwise there is a yellow_phase between two different phases.
         if len(self.action_pre) and action[0] != self.action_pre[0]:
-            yellow = self.phase_transformer[self.action_pre[0]][action[0]]
-            traci.trafficlight.setPhase('SmartWolfie', yellow)
+            yellow_phase = self.phase_transformer[self.action_pre[0]][action[0]]
+            traci.trafficlight.setPhase('SmartWolfie', yellow_phase)
             for t in range(self.yellow):
                 self.sumo_step()
 
@@ -175,17 +171,15 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         state = self.retrieve_state(raw)
 
         # ---- reward ----
-        vehicle_now, waiting_time = self.retrieve_reward(raw)
-        departed_vehicle = list(set(self.vehicle_pre) - set(vehicle_now))
-        reward = self.cal_reward(departed_vehicle, waiting_time)
+        reward = self.retrieve_reward(raw)[0]
 
-        self.vehicle_pre = copy.deepcopy(vehicle_now)
+        self.action_pre = copy.deepcopy(action)
 
         if self.episode_steps > self.simulation_steps:
             done = 1
         else:
             done = 0
-        info = self.retrieve_more_info(raw)
+        info = {}
         return state, reward, done, info
 
     def retrieve_raw_info(self):
@@ -248,44 +242,33 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         """
         :return:
         """
-        vehicle_IDs = []
+        queue = 0
+        loss_time = []
         accumulated_waiting_time = []
+        reward = np.array([0.] * 3)
 
         raw = list(raw.items())
         for vehicles_specific_type in raw:
-            # spe: specific
-            accumulated_waiting_time_spe_type = []
+            speed_specific_type = []
+            loss_time_specific_type = []
+            accumulated_waiting_time_specific_type = []
             for vehicle in vehicles_specific_type[1]:
-                vehicle_IDs.append(int(vehicle[0]))
-                accumulated_waiting_time_spe_type.append(vehicle[3])
-            accumulated_waiting_time.append(accumulated_waiting_time_spe_type)
+                speed_specific_type.append(vehicle[2])
+                accumulated_waiting_time_specific_type.append(vehicle[3])
+                loss_time_specific_type.append(vehicle[4])
+            for speed in speed_specific_type:
+                if speed < self.max_queuing_speed:
+                    queue += 1
+            accumulated_waiting_time.append(accumulated_waiting_time_specific_type)
+            loss_time.append(loss_time_specific_type)
+        loss_time = sum(loss_time, [])
         accumulated_waiting_time = sum(accumulated_waiting_time, [])
 
-        return vehicle_IDs, accumulated_waiting_time
-
-    def cal_reward(self, departed_vehicle, waiting_time):
-        waiting_time_ = np.array([t - self.punish_threshold for t in waiting_time if t > self.punish_threshold])
-        # reward = - np.sum(self.punish_scale * np.sqrt(np.divide(waiting_time_, self.latitude))) + len(departed_vehicle) * self.bonus
-        # reward = self.punish_scale * (np.exp(len(departed_vehicle) / self.latitude) - 1)
-        reward = len(departed_vehicle)
+        reward[0] = queue  # total queue at present
+        reward[1] = np.mean(loss_time)  # average loss time
+        reward[2] = np.mean(accumulated_waiting_time)  # average waiting time
 
         return reward
-
-    def retrieve_more_info(self, raw):
-        """
-        Mainly for evaluation
-
-        :param raw:
-        :return:
-        """
-        queue = []
-        raw = list(raw.items())
-        for vehicles_specific_type in raw:
-            for vehicle in vehicles_specific_type[1]:
-                if vehicle[2] < self.max_queuing_speed:
-                    queue.append(vehicle)
-
-        return len(queue)
 
     def seed(self, seed=None):
         random.seed(seed)
