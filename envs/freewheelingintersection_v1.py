@@ -116,10 +116,12 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         self.episode_steps = 0
         raw = self.retrieve_raw_info()
         state = self.retrieve_state(raw)
+        done = 0
 
         self.action_pre = []
+        self.vehicle_pre = []
 
-        return state
+        return state, done
 
     def step(self, action):
         """
@@ -155,8 +157,8 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
 
         # reward
         vehicle_now, waiting_time = self.retrieve_reward(raw)
-        departed_vehicle = list(set(self.vehicle_pre) - set(vehicle_now))
-        reward = len(departed_vehicle)
+        reward = len(set(self.vehicle_pre) - set(vehicle_now))
+
 
         # done
         if self.episode_steps > self.simulation_steps:
@@ -176,25 +178,25 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         """
         :return: dic to save vehicles' speed and position etc. w.r.t its vehicle type
         """
-        vehicle_raw_info = {}
-
+        vehicle_raw_info = {_: [] for _ in self.vehicle_types}
         for edgeID in self.edgeIDs:
-            vehicle_raw_info[edgeID] = []
             traci.edge.subscribe(edgeID, (tc.LAST_STEP_VEHICLE_ID_LIST,))
-            vehicle_IDs_edge = [str(_) for _ in traci.edge.getSubscriptionResults(edgeID).values()]
-            for ID in vehicle_IDs_edge:
-                traci.vehicle.subscribe(ID, (tc.VAR_TYPE, tc.VAR_LANEPOSITION, tc.VAR_SPEED,
-                                             tc.VAR_ACCUMULATED_WAITING_TIME, tc.VAR_TIMELOSS))
-                temp = [_ for _ in traci.vehicle.getSubscriptionResults(ID).values()]
-                temp[1] = self.lane_length - temp[1]
-                temp.insert(0, ID)
-                vehicle_raw_info[edgeID].append(temp)
-                # LENGTH_LANE is the length of lane, gotten from FW_Inter.net.xml.
-                # temp[0]:str, vehicle's ID
-                # temp[1]:float, the distance between vehicle and lane's stop line.
-                # temp[2]:float, speed
-                # temp[3]:float, accumulated_waiting_time
-                # temp[4]:float, time loss
+            for _ in traci.edge.getSubscriptionResults(edgeID).values():
+                vehicle_IDs_edge = [IDs for IDs in _]
+
+                for ID in vehicle_IDs_edge:
+                    traci.vehicle.subscribe(ID, (tc.VAR_TYPE, tc.VAR_LANEPOSITION, tc.VAR_SPEED,
+                                                 tc.VAR_ACCUMULATED_WAITING_TIME, tc.VAR_TIMELOSS))
+                    temp = [_ for _ in traci.vehicle.getSubscriptionResults(ID).values()]
+                    temp[1] = self.lane_length - temp[1]
+                    if temp[0] in self.vehicle_types:
+                        vehicle_raw_info[temp[0]].append([ID, temp[1], temp[2], temp[3], temp[4]])
+                        # LENGTH_LANE is the length of lane, gotten from FW_Inter.net.xml.
+                        # temp[0]:str, vehicle's ID
+                        # temp[1]:float, the distance between vehicle and lane's stop line.
+                        # temp[2]:float, speed
+                        # temp[3]:float, accumulated_waiting_time
+                        # temp[4]:float, time loss
 
         return vehicle_raw_info
 
@@ -203,7 +205,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         :return:
         """
 
-        state = np.array([len(v) for k, v in raw.items()])
+        state = [len(v) for k, v in raw.items()]
 
         return state
 
@@ -211,13 +213,9 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         """
         :return:
         """
-        vehicle_IDs = []
-        acc_waiting_time = []
-        for k, v in raw.items():
-            vehicle_IDs_edge = [_[0] for _ in v]
-            acc_waiting_time_edge = [_[3] for _ in v]
-            vehicle_IDs.append(vehicle_IDs_edge)
-            acc_waiting_time.append(acc_waiting_time_edge)
+
+        vehicle_IDs = [_[0] for k, v in raw.items() for _ in v]
+        acc_waiting_time = [_[3] for k, v in raw.items() for _ in v]
 
         return vehicle_IDs, acc_waiting_time
 

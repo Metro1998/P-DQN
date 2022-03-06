@@ -10,15 +10,15 @@ config.evaluate_internal = 5
 config.environment = 'FreewheelingIntersection-v1'
 config.file_to_save = 'results/'
 config.save_model = True
-config.standard_deviation_results = 1.0
 config.randomise_random_seed = True
 config.save_freq = 5
-config.simulations_num = 10
 config.rolling_score_window = 5
 config.runs_per_agent = 3
 config.agent_name = 'P-DQN'
 config.use_GPU = True
 config.ceil = True
+config.updates_per_step = 1
+config.maximum_episodes = 400
 config.demand = [
     [1. / 22, 1. / 20, 1. / 21, 1. / 18, 1. / 16, 1. / 14, 1. / 13, 1. / 21, 1. / 20, 1. / 21, 1. / 19, 1. / 18],
     [1. / 20, 1. / 21, 1. / 18, 1. / 13, 1. / 16, 1. / 12, 1. / 12, 1. / 19, 1. / 13, 1. / 11, 1. / 16, 1. / 18]
@@ -35,9 +35,6 @@ config.env_parameters = {
                        'WS_right', 'WE_through', 'WN_left'],
     'yellow': 3,
     'simulation_steps': 3600,
-    'n_steps': 5,
-    'alpha': 0.2,  # TODO
-
 }
 config.hyperparameters = {
     'device': 'cuda' if torch.cuda.is_available() else 'cpu',
@@ -54,8 +51,6 @@ config.hyperparameters = {
     'tau_actor': 0.01,
     'critic_hidden_layers': (256, 128, 64),
     'actor_hidden_layers': (256, 128, 64),
-    'updates_per_step': 1,
-    'maximum_episodes': 400,
     'alpha': 0.2,
 }
 

@@ -112,19 +112,18 @@ class GaussianPolicy(nn.Module):
     def sample(self, state):
         mean, log_std = self.forward(state)
         std = log_std.exp()
-        print('std:', std)
-        print('mean:', mean)
-        # normal = Normal(mean, std)
-        # x_t = normal.rsample()
-        # y_t = torch.tanh(x_t)
-        # action = y_t * self.action_scale + self.action_bias
-        noise = torch.randn_like(mean, requires_grad=True)
-        action = (mean + std * noise).tanh()
+        normal = Normal(mean, std)
+        x_t = normal.rsample()
+        y_t = torch.tanh(x_t)
+        action = y_t * self.action_scale + self.action_bias
+        # noise = torch.randn_like(mean, requires_grad=True)
+        # action = (mean + std * noise).tanh()
 
-        # log_prob = normal.log_prob(x_t)
-        # log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
-        # log_prob = log_prob.sum(1, keepdim=True)
-        # mean = torch.tanh(mean) * self.action_scale + self.action_bias
-        log_prob = log_std + np.log(np.sqrt(2 * np.pi)) + noise.pow(2).__mul__(0.5)
-        log_prob += (-action.pow(2) + 1.00000001).log()
-        return action, log_prob.sum(1, keepdim=True), mean
+        log_prob = normal.log_prob(x_t)
+        log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        mean = torch.tanh(mean) * self.action_scale + self.action_bias
+        # log_prob = log_std + np.log(np.sqrt(2 * np.pi)) + noise.pow(2).__mul__(0.5)
+        # log_prob += (-action.pow(2) + 1.00000001).log()
+        # log_prob = log_prob.sum(1, keepdims=True)
+        return action, log_prob, mean

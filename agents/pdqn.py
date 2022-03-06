@@ -8,6 +8,8 @@
 
 import math
 import random
+
+import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from agents.base_agent import Base_Agent
@@ -56,8 +58,8 @@ class P_DQN(Base_Agent):
         hard_update(source=self.critic, target=self.critic_target)
 
         # actors
-        state_dim_actor = self.state_dim / 4 + 1
-        action_dim_actor = self.action_dim / 8
+        state_dim_actor = int(self.state_dim / 4)
+        action_dim_actor = int(self.action_dim / 8)
         self.actor_st = GaussianPolicy(
             state_dim_actor, action_dim_actor, self.actor_hidden_layers, env.action_space[1]).to(self.device)
         self.actor_le = GaussianPolicy(
@@ -69,7 +71,8 @@ class P_DQN(Base_Agent):
         self.actor_sl_optim = optim.Adam(self.actor_sl.parameters(), lr=self.lr_actor)
 
         self.target_entropy = -torch.Tensor([self.action_dim]).to(self.device).item()
-        self.log_alpha = torch.tensor(-np.log(self.action_dim), dtype=torch.float32, requires_grad=True, device=self.device)
+        self.log_alpha = torch.tensor(-np.log(self.action_dim), dtype=torch.float32, requires_grad=True,
+                                      device=self.device)
         self.alpha_optim = optim.Adam([self.log_alpha], lr=self.lr_critic)  # todo
 
     def select_action(self, state, train=True):
@@ -79,11 +82,11 @@ class P_DQN(Base_Agent):
         :param train:
         :return:
         """
-        state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
         self.epsilon_step()
         if train:
             with torch.no_grad():
-                action_params = self.generate_action_params(state, action_pre=)  # TODO
+                state = torch.FloatTensor(state).to(self.device).unqueeze(0)
+                action_params, _ = self.actors_sample(state)  # TODO
 
                 if random.random() < self.epsilon:
                     action = np.random.randint(self.action_dim)
@@ -93,18 +96,19 @@ class P_DQN(Base_Agent):
                     Q_a = Q_a.detach().cpu().numpy()
                     action = int(np.argmax(Q_a))
                 action_params = action_params.detach().cpu().numpy()
-        else:
-            with torch.no_grad():
-                _, _, action_params = self.actor.sample(state) # TODO
-                Q_a = self.critic.forward(state, action_params)
-                Q_a = Q_a.detach().cpu().numpy()
-                action = int(np.argmax(Q_a))
-                action_params = action_params.detach().cpu().numpy()
+        # else:
+        #    with torch.no_grad():
+        #       _, _, action_params = self.actor.sample(state) # TODO
+        #       Q_a = self.critic.forward(state, action_params)
+        #      Q_a = Q_a.detach().cpu().numpy()
+        #       action = int(np.argmax(Q_a))
+        #       action_params = action_params.detach().cpu().numpy()
 
         return action, action_params
 
     def update(self, memory, actor_name, batch_size):
-        state_batch, action_batch, action_params_batch, reward_batch, next_state_batch, done_batch = memory.sample(batch_size)
+        state_batch, action_batch, action_params_batch, reward_batch, next_state_batch, done_batch = memory.sample(
+            batch_size)
 
         state_batch = torch.FloatTensor(state_batch).to(self.device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
@@ -115,15 +119,7 @@ class P_DQN(Base_Agent):
 
         # ------------------------------------ update critic -----------------------------------------------
         with torch.no_grad():
-            # next_state_action_params, next_state_log_pi, _ = self.actor.sample(next_state_batch)
-            if actor_name == 'actor_st':
-                next_state_action_params, next_state_log_pi, _ = self.actor_st.sample(next_state_batch)
-            elif actor_name == 'actor_le':
-                next_state_action_params, next_state_log_pi, _ = self.actor_le.sample(next_state_batch)
-            elif actor_name == 'actor_sl':
-                next_state_action_params, next_state_log_pi, _ = self.actor_sl.sample(next_state_batch)
-            else:
-                return 'Invalid actor_name'
+            next_state_action_params, next_state_log_pi = self.actors_sample(next_state_batch)
             q1_next_target, q2_next_target = self.critic_target(next_state_batch, next_state_action_params)
             min_q_next_target = torch.min(q1_next_target, q2_next_target) - self.alpha * next_state_log_pi
             q_next = reward_batch + (1 - done_batch) * self.gamma * min_q_next_target
@@ -137,6 +133,7 @@ class P_DQN(Base_Agent):
 
         # ------------------------------------ update actor -----------------------------------------------
         # pi, log_pi, _ = self.actor.sample(state_batch)
+        """
         if actor_name == 'actor_st':
             pi, log_pi, _ = self.actor_st.sample(state_batch)
         elif actor_name == 'actor_le':
@@ -145,6 +142,11 @@ class P_DQN(Base_Agent):
             pi, log_pi, _ = self.actor_sl.sample(state_batch)
         else:
             return 'Invalid actor_name'
+        """
+        pi, log_pi = self.actors_sample(state_batch)
+        pi = torch.gather(pi, 1, action_batch)
+        log_pi = torch.gather(log_pi, action_batch)
+
         q1_pi, q2_pi = self.critic(state_batch, pi)
         # min_q_pi = torch.min(q1_pi.gather(1, action_batch), q2_pi.gather(1, action_batch))
         min_q_pi = torch.min(q1_pi.mean(), q2_pi.mean())
@@ -177,20 +179,26 @@ class P_DQN(Base_Agent):
         self.alpha_optim.step()
         self.alpha = self.log_alpha.detach().exp()
 
-    def generate_action_params(self, state, action_pre):
+    def actors_sample(self, state):
         """
 
-        :param action_pre:
         :param state:
         :return:
         """
-        state_split = observation_wrapper(state, action_pre)  # (8, 3)
-        state_split = torch.FloatTensor(state_split).to(self.device)
-        action_params = self.actor_st.sample(state_split[:2, :])
-        action_params.cat(self.actor_le.sample(state_split[2:4, :]), 0)
-        action_params.cat(self.actor_sl.sample(state_split[4:8, :]), 0)
+        st_NS = self.actor_st.sample(torch.cat((state[:, 0].unsqueeze(1), state[:, 4].unsqueeze(1)), 1))  # batch_size * 2
+        st_EW = self.actor_st.sample(torch.cat((state[:, 2].unsqueeze(1), state[:, 6].unsqueeze(1)), 1))
+        le_NS = self.actor_le.sample(torch.cat((state[:, 1].unsqueeze(1), state[:, 5].unsqueeze(1)), 1))
+        le_EW = self.actor_le.sample(torch.cat((state[:, 3].unsqueeze(1), state[:, 7].unsqueeze(1)), 1))
+        sl_N = self.actor_sl.sample(torch.cat((state[:, 0].unsqueeze(1), state[:, 1].unsqueeze(1)), 1))
+        sl_E = self.actor_sl.sample(torch.cat((state[:, 2].unsqueeze(1), state[:, 3].unsqueeze(1)), 1))
+        sl_S = self.actor_sl.sample(torch.cat((state[:, 4].unsqueeze(1), state[:, 5].unsqueeze(1)), 1))
+        sl_W = self.actor_sl.sample(torch.cat((state[:, 6].unsqueeze(1), state[:, 7].unsqueeze(1)), 1))
+        action_params = torch.cat((st_NS[0], st_EW[0], le_NS[0], le_EW[0],
+                                   sl_N[0], sl_E[0], sl_S[0], sl_W[0]), 1)
+        log_prob = torch.cat((st_NS[1], st_EW[1], le_NS[1], le_EW[1],
+                              sl_N[1], sl_E[1], sl_S[1], sl_W[1]), 1)
 
-        return action_params.squeeze()
+        return action_params, log_prob
 
     def save_models(self, critic_path, actor_path):
         torch.save(self.critic.state_dict(), critic_path)

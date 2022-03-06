@@ -29,9 +29,7 @@ class Base_Agent(object):
 
         self.file_to_save = config.file_to_save
         self.runs_per_agent = config.runs_per_agent
-        self.standard_deviation_results = config.standard_deviation_results
         self.randomise_random_seed = config.randomise_random_seed
-        self.clip_grad_norm = 4.0
 
     def set_random_seeds(self, random_seed):
         """
