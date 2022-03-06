@@ -157,6 +157,19 @@ def visualize_results_per_run(agent_results, agent_name, save_freq, file_path_fo
         plt.savefig(file_path_for_pic)
 
 
+def observation_wrapper(state, action_pre):
+    state_st_NS = [state[0], state[4], action_pre]
+    state_st_EW = [state[2], state[6], action_pre]
+    state_le_NS = [state[1], state[5], action_pre]
+    state_le_EW = [state[3], state[7], action_pre]
+    state_sl_N = [state[0], state[1], action_pre]
+    state_sl_E = [state[2], state[3], action_pre]
+    state_sl_S = [state[4], state[5], action_pre]
+    state_sl_W = [state[6], state[7], action_pre]
+
+    return [state_st_NS, state_st_EW, state_le_NS, state_le_EW, state_sl_N, state_sl_E, state_sl_S, state_sl_W]
+
+
 # -------- Optimizer --------
 class SharedAdam(torch.optim.Adam):
     """
