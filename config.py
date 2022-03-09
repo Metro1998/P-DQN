@@ -28,6 +28,7 @@ class Config(object):
         self.demand = None
         self.ceil = True
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.use_ornstein_noise = True
         # the simulation_step in Env() is fixed (1800 in default), and this term makes sense in route_generator.
         # when you update simulation_step don't forget that in Env()
         self.simulation_step = 1800
@@ -49,7 +50,12 @@ class Config(object):
             'random_pick_steps': 10000,
             'updates_per_step': 2,
             'maximum_episodes': 2000,
+            'initial_memory_threshold': 256,
             'alpha': 0.2,
+            'loss_func': F.smooth_l1_loss,
+            'clip_grad': 10,
+            'init_std': 0.1,
+
         }
 
         self.others = {
@@ -58,6 +64,7 @@ class Config(object):
             'average': True,
             'random_weighted': True,
             'inverting_gradients': True,
+            'zero_index_gradients': True,
         }
 
         self.agent_to_color_dictionary = {

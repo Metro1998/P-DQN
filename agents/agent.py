@@ -17,7 +17,8 @@ class Agent(object):
         self.action_space = env.action_space
         self.set_random_seeds(config.seed)
         self.device = torch.device(config.device)
-
+        self.seed = config.seed
+        self.local_rnd = self.set_random_seeds(self.seed)
 
     def set_random_seeds(self, random_seed):
         """
@@ -30,10 +31,13 @@ class Agent(object):
         torch.backends.cudnn.benchmark = False
         torch.manual_seed(random_seed)
         random.seed(random_seed)
+        local_rnd = np.random.RandomState(random_seed)
         np.random.seed(random_seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(random_seed)
             torch.cuda.manual_seed(random_seed)
+
+        return local_rnd
 
     def act(self, state):
         """

@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +10,7 @@ from torch.autograd import Variable
 
 from agents.agent import Agent
 from agents.memory.memory import Memory
-from agents.model import QActor, ParamActor
+from agents.model import Critic, Actor
 from agents.utils import soft_update_target_network, hard_update_target_network
 from agents.utils.noise import OrnsteinUhlenbeckActionNoise
 
@@ -22,44 +23,14 @@ class P_DQN(Agent):
 
     NAME = "P-DQN Agent"
 
-    def __init__(self,
-                 observation_space,
-                 action_space,
-                 actor_class=QActor,
-                 actor_kwargs={},
-                 actor_param_class=ParamActor,
-                 actor_param_kwargs={},
-                 epsilon_initial=1.0,
-                 epsilon_final=0.05,
-                 epsilon_steps=10000,
-                 batch_size=64,
-                 gamma=0.99,
-                 tau_actor=0.01,  # Polyak averaging factor for copying target weights
-                 tau_actor_param=0.001,
-                 replay_memory_size=1000000,
-                 learning_rate_actor=0.0001,
-                 learning_rate_actor_param=0.00001,
-                 initial_memory_threshold=0,
-                 use_ornstein_noise=False,
-                 # if false, uses epsilon-greedy with uniform-random action-parameter exploration
-                 loss_func=F.mse_loss,  # F.mse_loss
-                 clip_grad=10,
-                 inverting_gradients=False,
-                 zero_index_gradients=False,
-                 indexed=False,
-                 weighted=False,
-                 average=False,
-                 random_weighted=False,
-                 device="cuda" if torch.cuda.is_available() else "cpu",
-                 seed=None,
-                 config=None):
+    def __init__(self, config=None):
         super(P_DQN, self).__init__(env, config)
 
         self.num_actions = self.action_space.spaces[0].n
         self.action_parameter_sizes = np.array(
             [self.action_space.spaces[i].shape[0] for i in range(1, self.num_actions + 1)])
         self.action_parameter_size = int(self.action_parameter_sizes.sum())
-        self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(device)
+        self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(self.device)
         self.action_min = -self.action_max.detach()
         self.action_range = (self.action_max - self.action_min).detach()
         print([self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)])
@@ -68,10 +39,11 @@ class P_DQN(Agent):
         self.action_parameter_min_numpy = np.concatenate(
             [self.action_space.spaces[i].low for i in range(1, self.num_actions + 1)]).ravel()
         self.action_parameter_range_numpy = (self.action_parameter_max_numpy - self.action_parameter_min_numpy)
-        self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(device)
-        self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(device)
-        self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(device)
+        self.action_parameter_max = torch.from_numpy(self.action_parameter_max_numpy).float().to(self.device)
+        self.action_parameter_min = torch.from_numpy(self.action_parameter_min_numpy).float().to(self.device)
+        self.action_parameter_range = torch.from_numpy(self.action_parameter_range_numpy).float().to(self.device)
 
+        self.epsilon = config.hyperparameters['epsilon_initial']
         self.epsilon_initial = config.hyperparameters['epsilon_initial']
         self.epsilon_final = config.hyperparameters['epsilon_final']
         self.epsilon_decay = config.hyperparameters['epsilon_decay']
@@ -79,7 +51,7 @@ class P_DQN(Agent):
         self.weighted = config.others['weighted']
         self.average = config.others['average']
         self.random_weighted = config.others['random_weighted']
-        assert (weighted ^ average ^ random_weighted) or not (weighted or average or random_weighted)
+        assert (self.weighted ^ self.average ^ self.random_weighted) or not (self.weighted or self.average or self.random_weighted)
 
         self.action_parameter_offsets = self.action_parameter_sizes.cumsum()
         self.action_parameter_offsets = np.insert(self.action_parameter_offsets, 0, 0)
@@ -87,57 +59,54 @@ class P_DQN(Agent):
         self.batch_size = config.hyperparameters['batch_size']
         self.gamma = config.hyperparameters['gamma']
         self.replay_memory_size = config.hyperparameters['replay_memory_size']
-        self.initial_memory_threshold = initial_memory_threshold
+        self.initial_memory_threshold = config.hyperparameters['initial_memory_threshold']
         self.lr_critic = config.hyperparameters['lr_critic']
         self.lr_actor = config.hyperparameters['lr_actor']
         self.inverting_gradients = config.others['inverting_gradients']
         self.tau_critic = config.hyperparameters['tau_critic']
         self.tau_actor = config.hyperparameters['tau_actor']
+        self.clip_grad = config.hyperparameters['clip_grad']
+        self.zero_index_gradients = config.others['zero_index_gradients']
+        self.critic_hidden_layers = config.hyperparameters['critic_hidden_layers']
+        self.actor_hidden_layers = config.hyperparameters['actor_hidden_layers']
+        self.init_std = config.hyperparameters['init_std']
+
         self._step = 0
         self._episode = 0
         self.updates = 0
-        self.clip_grad = clip_grad  # TODO
-        self.zero_index_gradients = zero_index_gradients  # TODO
 
-        self.np_random = None
-        self.seed = seed
-        self._seed(seed)
-
-        self.use_ornstein_noise = use_ornstein_noise
-        self.noise = OrnsteinUhlenbeckActionNoise(self.action_parameter_size, random_machine=self.np_random, mu=0.,
+        self.use_ornstein_noise = config.use_ornstein_noise
+        self.noise = OrnsteinUhlenbeckActionNoise(self.action_parameter_size, random_machine=self.local_rnd, mu=0.,
                                                   theta=0.15, sigma=0.0001)  # , theta=0.01, sigma=0.01)
 
-        print(self.num_actions + self.action_parameter_size)
-        self.replay_memory = Memory(replay_memory_size, observation_space.shape, (1 + self.action_parameter_size,),
-                                    next_actions=False)
-        self.actor = actor_class(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
-                                 **actor_kwargs).to(device)
-        self.actor_target = actor_class(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
-                                        **actor_kwargs).to(device)
+        self.replay_memory = Memory(self.replay_memory_size, self.observation_space.shape,
+                                    (1 + self.action_parameter_size, ), next_actions=False)
+        self.critic = Critic(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
+                             self.critic_hidden_layers, self.init_std).to(self.device)
+        self.critic_target = Critic(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
+                                    self.critic_hidden_layers, self.init_std).to(self.device)
+        hard_update_target_network(self.critic, self.critic_target)
+        self.critic_target.eval()
+
+        self.actor = Actor(self.observation_space.shape[0], self.action_parameter_size, self.actor_hidden_layers,
+                           self.init_std).to(self.device)
+        self.actor_target = Actor(self.observation_space.shape[0], self.action_parameter_size, self.actor_hidden_layers,
+                                  self.init_std).to(self.device)
         hard_update_target_network(self.actor, self.actor_target)
         self.actor_target.eval()
 
-        self.actor_param = actor_param_class(self.observation_space.shape[0], self.num_actions,
-                                             self.action_parameter_size, **actor_param_kwargs).to(device)
-        self.actor_param_target = actor_param_class(self.observation_space.shape[0], self.num_actions,
-                                                    self.action_parameter_size, **actor_param_kwargs).to(device)
-        hard_update_target_network(self.actor_param, self.actor_param_target)
-        self.actor_param_target.eval()
-
-        self.loss_func = loss_func  # l1_smooth_loss performs better but original paper used MSE
+        self.loss_func = config.hyperparameters['loss_func']  # l1_smooth_loss performs better but original paper used MSE
 
         # Original DDPG paper [Lillicrap et al. 2016] used a weight decay of 0.01 for Q (critic)
         # but setting weight_decay=0.01 on the critic_optimiser seems to perform worse...
         # using AMSgrad ("fixed" version of Adam, amsgrad=True) doesn't seem to help either...
-        self.actor_optimiser = optim.Adam(self.actor.parameters(),
-                                          lr=self.lr_critic)  # , betas=(0.95, 0.999))
-        self.actor_param_optimiser = optim.Adam(self.actor_param.parameters(),
-                                                lr=self.lr_actor)  # , betas=(0.95, 0.999)) #, weight_decay=critic_l2_reg)
+        self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.lr_critic)  # , betas=(0.95, 0.999))
+        self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.lr_actor)  # , betas=(0.95, 0.999)) #, weight_decay=critic_l2_reg)
 
     def __str__(self):
         desc = super().__str__() + "\n"
-        desc += "Actor Network {}\n".format(self.actor) + \
-                "Param Network {}\n".format(self.actor_param) + \
+        desc += "Actor Network {}\n".format(self.critic) + \
+                "Param Network {}\n".format(self.actor) + \
                 "Actor Alpha: {}\n".format(self.lr_critic) + \
                 "Actor Param Alpha: {}\n".format(self.lr_actor) + \
                 "Gamma: {}\n".format(self.gamma) + \
@@ -149,7 +118,6 @@ class P_DQN(Agent):
                 "Initial memory: {}\n".format(self.initial_memory_threshold) + \
                 "epsilon_initial: {}\n".format(self.epsilon_initial) + \
                 "epsilon_final: {}\n".format(self.epsilon_final) + \
-                "epsilon_steps: {}\n".format(self.epsilon_steps) + \
                 "Clip Grad: {}\n".format(self.clip_grad) + \
                 "Ornstein Noise?: {}\n".format(self.use_ornstein_noise) + \
                 "Zero Index Grads?: {}\n".format(self.zero_index_gradients) + \
@@ -157,7 +125,7 @@ class P_DQN(Agent):
         return desc
 
     def set_action_parameter_passthrough_weights(self, initial_weights, initial_bias=None):
-        passthrough_layer = self.actor_param.action_parameters_passthrough_layer
+        passthrough_layer = self.actor.action_parameters_passthrough_layer
         print(initial_weights.shape)
         print(passthrough_layer.weight.data.size())
         assert initial_weights.shape == passthrough_layer.weight.data.size()
@@ -170,22 +138,7 @@ class P_DQN(Agent):
         passthrough_layer.requires_grad = False
         passthrough_layer.weight.requires_grad = False
         passthrough_layer.bias.requires_grad = False
-        hard_update_target_network(self.actor_param, self.actor_param_target)
-
-    def _seed(self, seed=None):
-        """
-        NOTE: this will not reset the randomly initialised weights; use the seed parameter in the constructor instead.
-        :param seed:
-        :return:
-        """
-        self.seed = seed
-        random.seed(seed)
-        np.random.seed(seed)
-        self.np_random = np.random.RandomState(seed=seed)
-        if seed is not None:
-            torch.manual_seed(seed)
-            if self.device == torch.device("cuda"):
-                torch.cuda.manual_seed(seed)
+        hard_update_target_network(self.actor, self.actor_target)
 
     def _ornstein_uhlenbeck_noise(self, all_action_parameters):
         """ Continuous action exploration using an Ornstein–Uhlenbeck process. """
@@ -195,30 +148,25 @@ class P_DQN(Agent):
         pass
 
     def end_episode(self):
+        self.epsilon = self.epsilon_final + (self.epsilon_initial - self.epsilon_final) * math.exp(
+            -1. * self._episode / self.epsilon_decay)
         self._episode += 1
-
-        ep = self._episode
-        if ep < self.epsilon_steps:
-            self.epsilon = self.epsilon_initial - (self.epsilon_initial - self.epsilon_final) * (
-                    ep / self.epsilon_steps)
-        else:
-            self.epsilon = self.epsilon_final
 
     def act(self, state):
         with torch.no_grad():
             state = torch.from_numpy(state).to(self.device)
-            all_action_parameters = self.actor_param.forward(state)
+            all_action_parameters = self.actor.forward(state)
 
             # Hausknecht and Stone [2016] use epsilon greedy actions with uniform random action-parameter exploration
-            rnd = self.np_random.uniform()
+            rnd = self.local_rnd.uniform()
             if rnd < self.epsilon:
-                action = self.np_random.choice(self.num_actions)
+                action = self.local_rnd.choice(self.num_actions)
                 if not self.use_ornstein_noise:
                     all_action_parameters = torch.from_numpy(np.random.uniform(self.action_parameter_min_numpy,
                                                                                self.action_parameter_max_numpy))
             else:
                 # select maximum action
-                Q_a = self.actor.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
+                Q_a = self.critic.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
                 Q_a = Q_a.detach().cpu().data.numpy()
                 action = np.argmax(Q_a)
 
@@ -226,10 +174,8 @@ class P_DQN(Agent):
             all_action_parameters = all_action_parameters.cpu().data.numpy()
             offset = np.array([self.action_parameter_sizes[i] for i in range(action)], dtype=int).sum()
             if self.use_ornstein_noise and self.noise is not None:
-                all_action_parameters[offset:offset + self.action_parameter_sizes[action]] += self.noise.sample()[
-                                                                                              offset:offset +
-                                                                                                     self.action_parameter_sizes[
-                                                                                                         action]]
+                all_action_parameters[offset:offset + self.action_parameter_sizes[action]] += \
+                    self.noise.sample()[offset:offset + self.action_parameter_sizes[action]]
             action_parameters = all_action_parameters[offset:offset + self.action_parameter_sizes[action]]
 
         return action, action_parameters, all_action_parameters
@@ -281,71 +227,60 @@ class P_DQN(Agent):
 
         return grad
 
-    def step(self, state, action, reward, next_state, next_action, terminal, time_steps=1):
-        act, all_action_parameters = action
-        self._step += 1
-
-        # self._add_sample(state, np.concatenate((all_actions.data, all_action_parameters.data)).ravel(), reward,
-        # next_state, terminal)
-        self._add_sample(state, np.concatenate(([act], all_action_parameters)).ravel(), reward, next_state,
-                         np.concatenate(([next_action[0]], next_action[1])).ravel(), terminal=terminal)
-        if self._step >= self.batch_size and self._step >= self.initial_memory_threshold:
-            self._optimize_td_loss()
-            self.updates += 1
-
     def _add_sample(self, state, action, reward, next_state, next_action, terminal):
         assert len(action) == 1 + self.action_parameter_size
         self.replay_memory.append(state, action, reward, next_state, terminal=terminal)
 
-    def _optimize_td_loss(self):
-        if self._step < self.batch_size or self._step < self.initial_memory_threshold:
-            return
-        # Sample a batch from replay memory
-        states, actions, rewards, next_states, terminals = self.replay_memory.sample(self.batch_size,
-                                                                                     random_machine=self.np_random)
+    def _optimize_td_loss(self, memory):
+        if len(memory) < self.batch_size:
+            batch_size = len(memory)
+        else:
+            batch_size = self.batch_size
 
-        states = torch.from_numpy(states).to(self.device)
-        actions_combined = torch.from_numpy(actions).to(self.device)  # make sure to separate actions and parameters
-        actions = actions_combined[:, 0].long()
-        action_parameters = actions_combined[:, 1:]
-        rewards = torch.from_numpy(rewards).to(self.device).squeeze()
-        next_states = torch.from_numpy(next_states).to(self.device)
-        terminals = torch.from_numpy(terminals).to(self.device).squeeze()
+        state_batch, action_batch, action_params_batch, reward_batch, next_state_batch, done_batch = memory.sample(
+            batch_size, random_machine=self.local_rnd)
+
+        state_batch = torch.FloatTensor(state_batch).to(self.device)
+        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
+        action_batch = torch.IntTensor(action_batch).to(self.device).long().unsqueeze(1)
+        action_params_batch = torch.FloatTensor(action_params_batch).to(self.device)
+        reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
+        done_batch = torch.FloatTensor(done_batch).to(self.device).unsqueeze(1)
 
         # ---------------------- optimize Q-network ----------------------
         with torch.no_grad():
-            pred_next_action_parameters = self.actor_param_target.forward(next_states)
-            pred_Q_a = self.actor_target(next_states, pred_next_action_parameters)
+            pred_next_action_parameters = self.actor_target.forward(next_state_batch)
+            pred_Q_a = self.critic_target(next_state_batch, pred_next_action_parameters)
             Qprime = torch.max(pred_Q_a, 1, keepdim=True)[0].squeeze()
 
             # Compute the TD error
-            target = rewards + (1 - terminals) * self.gamma * Qprime
+            target = reward_batch + (1 - done_batch) * self.gamma * Qprime
 
         # Compute current Q-values using policy network
-        q_values = self.actor(states, action_parameters)
-        y_predicted = q_values.gather(1, actions.view(-1, 1)).squeeze()
+        q_values = self.critic(state_batch, action_params_batch)
+        y_predicted = q_values.gather(1, action_batch.view(-1, 1)).squeeze()
         y_expected = target
         loss_Q = self.loss_func(y_predicted, y_expected)
 
-        self.actor_optimiser.zero_grad()
+        self.critic_optim.zero_grad()
         loss_Q.backward()
         if self.clip_grad > 0:
-            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.clip_grad)
-        self.actor_optimiser.step()
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.clip_grad)
+        self.critic_optim.step()
 
         # ---------------------- optimize actor ----------------------
         with torch.no_grad():
-            action_params = self.actor_param(states)
+            action_params = self.actor(state_batch)
         action_params.requires_grad = True
         assert (self.weighted ^ self.average ^ self.random_weighted) or \
                not (self.weighted or self.average or self.random_weighted)
-        Q = self.actor(states, action_params)
+        Q = self.critic(state_batch, action_params)
         Q_val = Q
         if self.weighted:
             # approximate categorical probability density (i.e. counting)
-            counts = Counter(actions.cpu().numpy())
+            counts = Counter(action_batch.cpu().numpy())
             weights = torch.from_numpy(
-                np.array([counts[a] / actions.shape[0] for a in range(self.num_actions)])).float().to(self.device)
+                np.array([counts[a] / action_batch.shape[0] for a in range(self.num_actions)])).float().to(self.device)
             Q_val = weights * Q
         elif self.average:
             Q_val = Q / self.num_actions
@@ -355,30 +290,30 @@ class P_DQN(Agent):
             weights = torch.from_numpy(weights).float().to(self.device)
             Q_val = weights * Q
         if self.indexed:
-            Q_indexed = Q_val.gather(1, actions.unsqueeze(1))
+            Q_indexed = Q_val.gather(1, action_batch.unsqueeze(1))
             Q_loss = torch.mean(Q_indexed)
         else:
             Q_loss = torch.mean(torch.sum(Q_val, 1))
-        self.actor.zero_grad()
+        self.critic.zero_grad()
         Q_loss.backward()
         from copy import deepcopy
         delta_a = deepcopy(action_params.grad.data)
         # step 2
-        action_params = self.actor_param(Variable(states))
+        action_params = self.actor(Variable(state_batch))
         delta_a[:] = self._invert_gradients(delta_a, action_params, grad_type="action_parameters", inplace=True)
         if self.zero_index_gradients:
-            delta_a[:] = self._zero_index_gradients(delta_a, batch_action_indices=actions, inplace=True)
+            delta_a[:] = self._zero_index_gradients(delta_a, batch_action_indices=action_batch, inplace=True)
 
         out = -torch.mul(delta_a, action_params)
-        self.actor_param.zero_grad()
+        self.actor.zero_grad()
         out.backward(torch.ones(out.shape).to(self.device))
         if self.clip_grad > 0:
-            torch.nn.utils.clip_grad_norm_(self.actor_param.parameters(), self.clip_grad)
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.clip_grad)
 
-        self.actor_param_optimiser.step()
+        self.actor_optim.step()
 
-        soft_update_target_network(self.actor, self.actor_target, self.tau_critic)
-        soft_update_target_network(self.actor_param, self.actor_param_target, self.tau_actor)
+        soft_update_target_network(self.critic, self.critic_target, self.tau_critic)
+        soft_update_target_network(self.actor, self.actor_target, self.tau_actor)
 
     def save_models(self, prefix):
         """
@@ -386,8 +321,8 @@ class P_DQN(Agent):
         :param prefix: the count of episodes iterated
         :return:
         """
-        torch.save(self.actor.state_dict(), prefix + '_actor.pt')
-        torch.save(self.actor_param.state_dict(), prefix + '_actor_param.pt')
+        torch.save(self.critic.state_dict(), prefix + '_actor.pt')
+        torch.save(self.actor.state_dict(), prefix + '_actor_param.pt')
         print('Models saved successfully')
 
     def load_models(self, prefix):
@@ -398,6 +333,6 @@ class P_DQN(Agent):
         :return:
         """
         # also try load on CPU if no GPU available?
-        self.actor.load_state_dict(torch.load(prefix + '_actor.pt', map_location='cpu'))
-        self.actor_param.load_state_dict(torch.load(prefix + '_actor_param.pt', map_location='cpu'))
+        self.critic.load_state_dict(torch.load(prefix + '_actor.pt', map_location='cpu'))
+        self.actor.load_state_dict(torch.load(prefix + '_actor_param.pt', map_location='cpu'))
         print('Models loaded successfully')
