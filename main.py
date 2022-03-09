@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from config import Config
 from trainer import Train_and_Evaluate
 
@@ -9,38 +10,21 @@ config.evaluate = False
 config.evaluate_internal = 5
 config.environment = 'FreewheelingIntersection-v1'
 config.file_to_save = 'results/'
-config.save_model = True
 config.standard_deviation_results = 1.0
-config.randomise_random_seed = True
 config.save_freq = 5
-config.simulations_num = 10
 config.rolling_score_window = 5
 config.runs_per_agent = 3
 config.agent_name = 'P-DQN'
 config.use_GPU = True
-config.ceil = True
 config.demand = [
     [1. / 22, 1. / 20, 1. / 21, 1. / 18, 1. / 16, 1. / 14, 1. / 13, 1. / 21, 1. / 20, 1. / 21, 1. / 19, 1. / 18],
     [1. / 20, 1. / 21, 1. / 18, 1. / 13, 1. / 16, 1. / 12, 1. / 12, 1. / 19, 1. / 13, 1. / 11, 1. / 16, 1. / 18]
 ]
+config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+config.use_ornstein_noise = True
+config.simulation_step = 1800
 
-config.env_parameters = {
-    'cells': 32,
-    'lane_length_high': 240.,
-    'speed_high': 100.,
-    'edge_ids': ['north_in', 'east_in', 'south_in', 'west_in'],
-    'vehicles_types': ['NW_right', 'NS_through', 'NE_left',
-                       'EN_right', 'EW_through', 'ES_left',
-                       'SE_right', 'SN_through', 'SW_left',
-                       'WS_right', 'WE_through', 'WN_left'],
-    'yellow': 3,
-    'simulation_steps': 3600,
-    'n_steps': 5,
-    'alpha': 0.2,  # TODO
-
-}
 config.hyperparameters = {
-    'device': 'cuda' if torch.cuda.is_available() else 'cpu',
     'epsilon_initial': 0.3,
     'epsilon_final': 0,
     'epsilon_decay': 3000,
@@ -56,7 +40,23 @@ config.hyperparameters = {
     'actor_hidden_layers': (256, 128, 64),
     'updates_per_step': 1,
     'maximum_episodes': 400,
-    'alpha': 0.2,
+    'loss_func': F.smooth_l1_loss,
+    'clip_grad': 10,
+    'init_std': 0.1,
+}
+
+config.others = {
+    'indexed': True,
+    'weighted': True,
+    'average': True,
+    'random_weighted': True,
+    'inverting_gradients': True,
+    'zero_index_gradients': True,
+}
+
+config.agent_to_color_dictionary = {
+    'P-DQN': '#0000FF',
+    'intelligent_light': '#0E0E0F',
 }
 
 if __name__ == "__main__":

@@ -4,17 +4,15 @@ import numpy as np
 import torch
 
 
-class Agent(object):
+class BaseAgent(object):
     """
     Defines a basic reinforcement learning agent for OpenAI Gym environments
     """
 
     NAME = "Abstract Agent"
 
-    def __init__(self, env, config):
+    def __init__(self, config):
         super().__init__()
-        self.observation_space = env.observation_space
-        self.action_space = env.action_space
         self.set_random_seeds(config.seed)
         self.device = torch.device(config.device)
         self.seed = config.seed

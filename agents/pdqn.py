@@ -8,14 +8,14 @@ import random
 from collections import Counter
 from torch.autograd import Variable
 
-from agents.agent import Agent
+from agents.baseagent import BaseAgent
 from agents.memory.memory import Memory
 from agents.model import Critic, Actor
 from agents.utils import soft_update_target_network, hard_update_target_network
 from agents.utils.noise import OrnsteinUhlenbeckActionNoise
 
 
-class P_DQN(Agent):
+class P_DQN(BaseAgent):
     """
     DDPG actor-critic agent for parameterised action spaces
     [Hausknecht and Stone 2016]
@@ -23,8 +23,11 @@ class P_DQN(Agent):
 
     NAME = "P-DQN Agent"
 
-    def __init__(self, config=None):
-        super(P_DQN, self).__init__(env, config)
+    def __init__(self, config, env):
+        super(P_DQN, self).__init__(config)
+
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
 
         self.num_actions = self.action_space.spaces[0].n
         self.action_parameter_sizes = np.array(
@@ -71,9 +74,7 @@ class P_DQN(Agent):
         self.actor_hidden_layers = config.hyperparameters['actor_hidden_layers']
         self.init_std = config.hyperparameters['init_std']
 
-        self._step = 0
         self._episode = 0
-        self.updates = 0
 
         self.use_ornstein_noise = config.use_ornstein_noise
         self.noise = OrnsteinUhlenbeckActionNoise(self.action_parameter_size, random_machine=self.local_rnd, mu=0.,
@@ -227,11 +228,7 @@ class P_DQN(Agent):
 
         return grad
 
-    def _add_sample(self, state, action, reward, next_state, next_action, terminal):
-        assert len(action) == 1 + self.action_parameter_size
-        self.replay_memory.append(state, action, reward, next_state, terminal=terminal)
-
-    def _optimize_td_loss(self, memory):
+    def optimize_td_loss(self, memory):
         if len(memory) < self.batch_size:
             batch_size = len(memory)
         else:
@@ -315,24 +312,14 @@ class P_DQN(Agent):
         soft_update_target_network(self.critic, self.critic_target, self.tau_critic)
         soft_update_target_network(self.actor, self.actor_target, self.tau_actor)
 
-    def save_models(self, prefix):
-        """
-        saves the target actor and critic models
-        :param prefix: the count of episodes iterated
-        :return:
-        """
-        torch.save(self.critic.state_dict(), prefix + '_actor.pt')
-        torch.save(self.actor.state_dict(), prefix + '_actor_param.pt')
+    def save_models(self, critic_path, actor_path):
+        torch.save(self.critic.state_dict(), critic_path)
+        torch.save(self.actor.state_dict(), actor_path)
         print('Models saved successfully')
 
-    def load_models(self, prefix):
-        """
-        loads the target actor and critic models, and copies them onto actor and critic models
-        :param prefix: the count of episodes iterated (used to find the file name)
-        :param target: whether to load the target newtwork too (not necessary for evaluation)
-        :return:
-        """
+    def load_models(self, critic_path, actor_path):
         # also try load on CPU if no GPU available?
-        self.critic.load_state_dict(torch.load(prefix + '_actor.pt', map_location='cpu'))
-        self.actor.load_state_dict(torch.load(prefix + '_actor_param.pt', map_location='cpu'))
+        self.critic.load_state_dict(torch.load(critic_path))
+        self.actor.load_state_dict(torch.load(actor_path))
         print('Models loaded successfully')
+

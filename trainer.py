@@ -3,9 +3,11 @@
 import os.path
 
 import gym
+import numpy as np
 from agents.pdqn import P_DQN
-from utilities.utilities import *
+from agents.memory.memory import ReplayBuffer
 from agents.utils.route_generator import generate_routefile
+from agents.utils.utilities import *
 
 
 class Train_and_Evaluate(object):
@@ -44,7 +46,6 @@ class Train_and_Evaluate(object):
         self.rolling_score_window = config.rolling_score_window
         self.runs_per_agent = config.runs_per_agent
         self.agent_name = config.agent_name
-        self.ceil = config.ceil
 
         # Training Loop
 
@@ -55,49 +56,48 @@ class Train_and_Evaluate(object):
         """
 
         rolling_scores_for_diff_runs = []
+        file_to_save_critic = os.path.join(self.file_to_save, 'critic/')
         file_to_save_actor = os.path.join(self.file_to_save, 'actor/')
-        file_to_save_actor_param = os.path.join(self.file_to_save, 'actor_param/')
-        file_to_save_runs = os.path.join(self.file_to_save, 'runs_1/')
+        file_to_save_runs = os.path.join(self.file_to_save, 'runs/')
         file_to_save_rolling_scores = os.path.join(self.file_to_save, 'rolling_scores/')
+        os.makedirs(file_to_save_critic, exist_ok=True)
         os.makedirs(file_to_save_actor, exist_ok=True)
-        os.makedirs(file_to_save_actor_param, exist_ok=True)
         os.makedirs(file_to_save_runs, exist_ok=True)
         os.makedirs(file_to_save_rolling_scores, exist_ok=True)
 
         for run in range(self.runs_per_agent):
-            game_full_episodes_scores = []
-            game_full_episodes_rolling_scores = []
+            episodes_score = []
+            episodes_rolling_score = []
 
             for i_episode in range(self.maximum_episodes):
 
                 if self.save_freq > 0 and i_episode % self.save_freq == 0:
+                    critic_path = os.path.join(file_to_save_critic, 'episode{}'.format(i_episode))
                     actor_path = os.path.join(file_to_save_actor, 'episode{}'.format(i_episode))
-                    actor_param_path = os.path.join(file_to_save_actor_param, 'episode{}'.format(i_episode))
-                    self.agent.save_models(actor_path, actor_param_path)
+                    self.agent.save_models(critic_path, actor_path)
 
+                # Initialization
                 episode_score = []
                 episode_steps = 0
                 done = 0
-                state = self.env.reset()  # n_steps
+                state = self.env.reset()
 
                 while not done:
                     if len(self.memory) > self.batch_size:
-                        action, action_params = self.agent.select_action(state, self.train)
-                        if self.ceil:
-                            action_params = np.ceil(action_params).squeeze(0)
+                        action, action_param, action_params = self.agent.act(state)
+                        action_params = np.ceil(action_params).squeeze(0)
 
-                        action_for_env = [action, int(action_params[action])]
+                        action_env = np.concatenate((action, action_params), axis=1)
 
                         for i in range(self.updates_per_step):
-                            self.agent.update(self.memory)
+                            self.agent.optimize_td_loss(self.memory)
                             self.total_updates += 1
                     else:
                         action_params = np.random.randint(low=10, high=31, size=8)
                         action = np.random.randint(7, size=1)[0]
-                        action_for_env = [action, action_params[action]]
+                        action_env = [action, action_params[action]]
 
-                    next_state, reward, done, info = self.env.step(action_for_env)
-                    print(reward)
+                    next_state, reward, done, info = self.env.step(action_env)
 
                     episode_steps += 1
                     episode_score.append(info)
@@ -107,21 +107,18 @@ class Train_and_Evaluate(object):
 
                     state = next_state
 
-                episode_score_so_far = np.mean(episode_score)
-                game_full_episodes_scores.append(episode_score_so_far)
-                game_full_episodes_rolling_scores.append(
-                    np.mean(game_full_episodes_scores[-1 * self.rolling_score_window:]))
-
-                print("Episode: {}, total steps:{}, episode steps:{}, scores:{}".format(
-                    i_episode, self.total_steps, episode_steps, episode_score_so_far))
+                episodes_score.append(np.mean(episode_score))
+                episodes_rolling_score.append(
+                    np.mean(episodes_score[-1 * self.rolling_score_window:]))
 
                 self.env.close()
+                self.agent.end_episode()
                 file_path_for_pic = os.path.join(file_to_save_runs, 'episode{}_run{}.jpg'.format(i_episode, run))
-                visualize_results_per_run(agent_results=game_full_episodes_scores,
+                visualize_results_per_run(agent_results=episodes_score,
                                           agent_name=self.agent_name,
                                           save_freq=1,
                                           file_path_for_pic=file_path_for_pic)
-                rolling_scores_for_diff_runs.append(game_full_episodes_rolling_scores)
+                rolling_scores_for_diff_runs.append(episodes_rolling_score)
 
         file_path_for_pic = os.path.join(file_to_save_rolling_scores, 'rolling_scores.jpg')
         visualize_overall_agent_results(agent_results=rolling_scores_for_diff_runs,

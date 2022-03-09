@@ -13,20 +13,15 @@ class Config(object):
         self.evaluate = True
         self.evaluate_internal = 5
         self.environment = 'FreewheelingIntersection_v0'
-        self.num_episodes_to_run = None
         self.file_to_save = None
         self.hyperparameters = None
-        self.env_parameters = None
         self.standard_deviation_results = 1.0
-        self.randomise_random_seed = True
         self.save_freq = 5
-        self.simulations_num = 10
         self.rolling_score_window = 5
         self.runs_per_agent = 10
         self.use_GPU = True
         self.agent_name = 'P-DQN'
         self.demand = None
-        self.ceil = True
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.use_ornstein_noise = True
         # the simulation_step in Env() is fixed (1800 in default), and this term makes sense in route_generator.
@@ -47,11 +42,8 @@ class Config(object):
             'tau_critic': 0.01,
             'critic_hidden_layers': (256, 128, 64),
             'actor_hidden_layers': (256, 128, 64),
-            'random_pick_steps': 10000,
             'updates_per_step': 2,
             'maximum_episodes': 2000,
-            'initial_memory_threshold': 256,
-            'alpha': 0.2,
             'loss_func': F.smooth_l1_loss,
             'clip_grad': 10,
             'init_std': 0.1,
