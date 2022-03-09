@@ -26,7 +26,7 @@ def generate_routefile(seed, demand: list):
     assert isinstance(demand[0], list), 'Wrong data structure, a list of lists is required.'
 
     random.seed(seed)
-    N = 1800  # number of time steps for one simulation
+    N = 7200  # number of time steps for one simulation
     assert N % len(demand) == 0, 'N should be divisible by len(demand).'
 
     with open('envs/sumo/road_network/FW_Inter.rou.xml', "w") as routes:

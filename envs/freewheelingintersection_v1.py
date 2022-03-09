@@ -62,10 +62,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         self.edgeIDs = ['north_in', 'east_in', 'south_in', 'west_in']
 
         # vehicle_types will help to filter the vehicles on the same edge but have different direction.
-        self.vehicle_types = ['NS_through', 'NE_left',
-                              'EW_through', 'ES_left',
-                              'SN_through', 'SW_left',
-                              'WE_through', 'WN_left']
+        self.vehicle_types = ['NS_through', 'NE_left', 'EW_through', 'ES_left', 'SN_through', 'SW_left', 'WE_through', 'WN_left']
 
         self.phase_transformer = np.array([
             [None, 8, 8, 8, 16, 8, 17, 8],
@@ -81,7 +78,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         self.lane_length = 240.
         self.yellow = 3
         self.max_queuing_speed = 1.
-        self.simulation_steps = 1800
+        self.simulation_steps = 7200
         self.episode_steps = 0
 
         self.action_pre = None
@@ -158,8 +155,6 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         # reward
         vehicle_now, waiting_time = self.retrieve_reward(raw)
         reward = len(set(self.vehicle_pre) - set(vehicle_now))
-
-
         # done
         if self.episode_steps > self.simulation_steps:
             done = 1
@@ -205,7 +200,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         :return:
         """
 
-        state = [len(v) for k, v in raw.items()]
+        state = np.array([len(v) for k, v in raw.items()])
 
         return state
 

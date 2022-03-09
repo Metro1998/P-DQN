@@ -61,11 +61,11 @@ class P_DQN(Base_Agent):
         state_dim_actor = int(self.state_dim / 4)
         action_dim_actor = int(self.action_dim / 8)
         self.actor_st = GaussianPolicy(
-            state_dim_actor, action_dim_actor, self.actor_hidden_layers, env.action_space[1]).to(self.device)
+            state_dim_actor, action_dim_actor, self.actor_hidden_layers, ).to(self.device)
         self.actor_le = GaussianPolicy(
-            state_dim_actor, action_dim_actor, self.actor_hidden_layers, env.action_space[1]).to(self.device)
+            state_dim_actor, action_dim_actor, self.actor_hidden_layers, ).to(self.device)
         self.actor_sl = GaussianPolicy(
-            state_dim_actor, action_dim_actor, self.actor_hidden_layers, env.action_space[1]).to(self.device)
+            state_dim_actor, action_dim_actor, self.actor_hidden_layers, ).to(self.device)
         self.actor_st_optim = optim.Adam(self.actor_st.parameters(), lr=self.lr_actor)
         self.actor_le_optim = optim.Adam(self.actor_le.parameters(), lr=self.lr_actor)
         self.actor_sl_optim = optim.Adam(self.actor_sl.parameters(), lr=self.lr_actor)
@@ -85,17 +85,21 @@ class P_DQN(Base_Agent):
         self.epsilon_step()
         if train:
             with torch.no_grad():
-                state = torch.FloatTensor(state).to(self.device).unqueeze(0)
-                action_params, _ = self.actors_sample(state)  # TODO
+                state = torch.FloatTensor(state).to(self.device).unsqueeze(0)  # (state_dim) -> (1, state_dim)
+                action_params, _ = self.actors_sample(state)
 
                 if random.random() < self.epsilon:
-                    action = np.random.randint(self.action_dim)
+                    Q_a, _ = self.critic(state, action_params)
+                    print(Q_a)
+                    Q_a = Q_a.detach().cpu().numpy()
+                    action = int(np.argmin(Q_a))
 
                 else:
                     Q_a, _ = self.critic(state, action_params)
+                    print(Q_a)
                     Q_a = Q_a.detach().cpu().numpy()
                     action = int(np.argmax(Q_a))
-                action_params = action_params.detach().cpu().numpy()
+                action_params = action_params.squeeze().detach().cpu().numpy()
         # else:
         #    with torch.no_grad():
         #       _, _, action_params = self.actor.sample(state) # TODO
@@ -107,6 +111,8 @@ class P_DQN(Base_Agent):
         return action, action_params
 
     def update(self, memory, actor_name, batch_size):
+        if len(memory) < batch_size:
+            batch_size = len(memory)
         state_batch, action_batch, action_params_batch, reward_batch, next_state_batch, done_batch = memory.sample(
             batch_size)
 
@@ -122,12 +128,16 @@ class P_DQN(Base_Agent):
             next_state_action_params, next_state_log_pi = self.actors_sample(next_state_batch)
             q1_next_target, q2_next_target = self.critic_target(next_state_batch, next_state_action_params)
             min_q_next_target = torch.min(q1_next_target, q2_next_target) - self.alpha * next_state_log_pi
+            min_q_next_target = torch.max(min_q_next_target, 1, keepdim=True)[0].squeeze()
             q_next = reward_batch + (1 - done_batch) * self.gamma * min_q_next_target
         q1, q2 = self.critic(state_batch, action_params_batch)
+        q1 = q1.gather(1, action_batch.view(-1, 1)).squeeze()
+        q2 = q2.gather(1, action_batch.view(-1, 1)).squeeze()
         q_loss = F.mse_loss(q1, q_next) + F.mse_loss(q2, q_next)
 
         self.critic_optim.zero_grad()
         q_loss.backward()
+        torch.nn.utils.clip_grad_norm(self.critic.parameters(), [0., 20.])
         self.critic_optim.step()
         soft_update(self.critic_target, self.critic, self.tau_critic)
 
@@ -143,13 +153,15 @@ class P_DQN(Base_Agent):
         else:
             return 'Invalid actor_name'
         """
-        pi, log_pi = self.actors_sample(state_batch)
-        pi = torch.gather(pi, 1, action_batch)
-        log_pi = torch.gather(log_pi, action_batch)
+        with torch.no_grad():
+            pi, log_pi = self.actors_sample(state_batch)
+        pi.requires_grad = True
+        # pi = torch.gather(pi, 1, action_batch)  # action_batch(batch_size, 1)
+        # log_pi = torch.gather(log_pi, 1, action_batch)
 
         q1_pi, q2_pi = self.critic(state_batch, pi)
-        # min_q_pi = torch.min(q1_pi.gather(1, action_batch), q2_pi.gather(1, action_batch))
-        min_q_pi = torch.min(q1_pi.mean(), q2_pi.mean())
+        min_q_pi = torch.min(q1_pi.gather(1, action_batch), q2_pi.gather(1, action_batch))
+        # min_q_pi = torch.min(q1_pi.mean(), q2_pi.mean())
 
         actor_loss = ((self.alpha * log_pi) - min_q_pi).mean()
 
@@ -172,8 +184,7 @@ class P_DQN(Base_Agent):
             return 'Invalid actor_name'
 
         # ------------------------------------ update alpha -----------------------------------------------
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
-
+        alpha_loss = (self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
         self.alpha_optim.zero_grad()
         alpha_loss.backward()
         self.alpha_optim.step()
@@ -181,22 +192,23 @@ class P_DQN(Base_Agent):
 
     def actors_sample(self, state):
         """
+        Samples through three_body model, actually there is 8 actors
 
-        :param state:
-        :return:
+        :param state:FloatTensor(batch_size, action_params_dim)
+        :return: pi and log_pi w.r.t 8 stages
         """
-        st_NS = self.actor_st.sample(torch.cat((state[:, 0].unsqueeze(1), state[:, 4].unsqueeze(1)), 1))  # batch_size * 2
-        st_EW = self.actor_st.sample(torch.cat((state[:, 2].unsqueeze(1), state[:, 6].unsqueeze(1)), 1))
-        le_NS = self.actor_le.sample(torch.cat((state[:, 1].unsqueeze(1), state[:, 5].unsqueeze(1)), 1))
-        le_EW = self.actor_le.sample(torch.cat((state[:, 3].unsqueeze(1), state[:, 7].unsqueeze(1)), 1))
-        sl_N = self.actor_sl.sample(torch.cat((state[:, 0].unsqueeze(1), state[:, 1].unsqueeze(1)), 1))
-        sl_E = self.actor_sl.sample(torch.cat((state[:, 2].unsqueeze(1), state[:, 3].unsqueeze(1)), 1))
-        sl_S = self.actor_sl.sample(torch.cat((state[:, 4].unsqueeze(1), state[:, 5].unsqueeze(1)), 1))
-        sl_W = self.actor_sl.sample(torch.cat((state[:, 6].unsqueeze(1), state[:, 7].unsqueeze(1)), 1))
-        action_params = torch.cat((st_NS[0], st_EW[0], le_NS[0], le_EW[0],
-                                   sl_N[0], sl_E[0], sl_S[0], sl_W[0]), 1)
-        log_prob = torch.cat((st_NS[1], st_EW[1], le_NS[1], le_EW[1],
-                              sl_N[1], sl_E[1], sl_S[1], sl_W[1]), 1)
+        st_NS_a, st_NS_p, _ = self.actor_st.sample(torch.cat((state[:, 0].unsqueeze(1), state[:, 4].unsqueeze(1)), 1))  # batch_size * 2
+        st_EW_a, st_EW_p, _ = self.actor_st.sample(torch.cat((state[:, 2].unsqueeze(1), state[:, 6].unsqueeze(1)), 1))
+        le_NS_a, le_NS_p, _ = self.actor_le.sample(torch.cat((state[:, 1].unsqueeze(1), state[:, 5].unsqueeze(1)), 1))
+        le_EW_a, le_EW_p, _ = self.actor_le.sample(torch.cat((state[:, 3].unsqueeze(1), state[:, 7].unsqueeze(1)), 1))
+        sl_N_a, sl_N_p, _ = self.actor_sl.sample(torch.cat((state[:, 0].unsqueeze(1), state[:, 1].unsqueeze(1)), 1))
+        sl_E_a, sl_E_p, _ = self.actor_sl.sample(torch.cat((state[:, 2].unsqueeze(1), state[:, 3].unsqueeze(1)), 1))
+        sl_S_a, sl_S_p, _ = self.actor_sl.sample(torch.cat((state[:, 4].unsqueeze(1), state[:, 5].unsqueeze(1)), 1))
+        sl_W_a, sl_W_p, _ = self.actor_sl.sample(torch.cat((state[:, 6].unsqueeze(1), state[:, 7].unsqueeze(1)), 1))
+        action_params = torch.cat((st_NS_a, st_EW_a, le_NS_a, le_EW_a,
+                                   sl_N_a, sl_E_a, sl_S_a, sl_W_a), 1)
+        log_prob = torch.cat((st_NS_p, st_EW_p, le_NS_p, le_EW_p,
+                              sl_N_p, sl_E_p, sl_S_p, sl_W_p), 1)
 
         return action_params, log_prob
 

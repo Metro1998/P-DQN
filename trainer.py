@@ -75,38 +75,37 @@ class Train_and_Evaluate(object):
                 state, done = self.env.reset()
 
                 while not done:
-                    min_memory_size = min(len(self.memory_st), len(self.memory_le), len(self.memory_sl))
-                    if min_memory_size > self.batch_size:
-                        action, action_params = self.agent.select_action(state, self.train)
+                    action, action_params = self.agent.select_action(state, self.train)
+                    action_params_ = action_params * 10. + 20.
+                    if self.ceil:
+                        action_params_ = np.ceil(action_params_)
+                    action_for_env = [action, int(action_params_[action])]
+                    next_state, reward, done, info = self.env.step(action_for_env)
 
-                        if self.ceil:
-                            action_params = np.ceil(action_params)
-                        action_for_env = [action, int(action_params[action])]
-
+                    if len(self.memory_st) & len(self.memory_le) & len(self.memory_sl) & (self.total_steps / 5 == 0.):
                         for i in range(self.updates_per_step):
-                            self.agent.update(self.memory_st, batch_size=int(self.batch_size / 4), actor_name='actor_st')
-                            self.agent.update(self.memory_le, batch_size=int(self.batch_size / 4), actor_name='actor_le')
-                            self.agent.update(self.memory_sl, batch_size=int(self.batch_size / 2), actor_name='actor_sl')
+                            self.agent.update(self.memory_st, batch_size=int(self.batch_size / 4),
+                                              actor_name='actor_st')
+                            self.agent.update(self.memory_le, batch_size=int(self.batch_size / 4),
+                                              actor_name='actor_le')
+                            self.agent.update(self.memory_sl, batch_size=int(self.batch_size / 2),
+                                              actor_name='actor_sl')
+
+                    """
                     else:
                         # initial random pick
                         action_params = np.random.randint(low=10, high=31, size=8)
                         action = np.random.randint(7, size=1)[0]
                         action_for_env = [action, action_params[action]]
 
-                    next_state, reward, done, info = self.env.step(action_for_env)
-
+                    
+                    """
                     episode_score.append(info)
 
                     self.total_steps += 1
 
                     # push experiences into different memories
                     if action == 0 or action == 1:
-                        print('s', state)
-                        print('a', action)
-                        print('a_p', action_params)
-                        print('r', reward)
-                        print('n_s', next_state)
-                        print('d', done)
                         self.memory_st.push(state, action, action_params, reward, next_state, done)
                     elif action == 2 or action == 3:
                         self.memory_le.push(state, action, action_params, reward, next_state, done)

@@ -41,10 +41,10 @@ class DuelingDQN(nn.Module):
             self.layers.append(nn.Linear(hidden_layers[i - 1], hidden_layers[i]))
 
         self.adv_layers_1 = nn.Linear(hidden_layers[-1], action_dim)
-        self.val_layers_1 = nn.Linear(hidden_layers[-1], 1)
+        # self.val_layers_1 = nn.Linear(hidden_layers[-1], 1)
 
         self.adv_layers_2 = nn.Linear(hidden_layers[-1], action_dim)
-        self.val_layers_2 = nn.Linear(hidden_layers[-1], 1)
+        # self.val_layers_2 = nn.Linear(hidden_layers[-1], 1)
 
         self.apply(init_)
 
@@ -55,17 +55,17 @@ class DuelingDQN(nn.Module):
         for i in range(len(self.layers)):
             x1 = F.relu(self.layers[i](x1))
         adv1 = self.adv_layers_1(x1)
-        val1 = self.val_layers_1(x1)
-        q_duel1 = val1 + adv1 - adv1.mean(dim=1, keepdim=True)
+        # val1 = self.val_layers_1(x1)
+        # q_duel1 = val1 + adv1 - adv1.mean(dim=1, keepdim=True)
 
         x2 = temp
         for i in range(len(self.layers)):
             x2 = F.relu(self.layers[i](x2))
         adv2 = self.adv_layers_1(x2)
-        val2 = self.val_layers_1(x2)
-        q_duel2 = val2 + adv2 - adv2.mean(dim=1, keepdim=True)
+        # val2 = self.val_layers_1(x2)
+        # q_duel2 = val2 + adv2 - adv2.mean(dim=1, keepdim=True)
 
-        return q_duel1, q_duel2
+        return adv1, adv2
 
 
 class GaussianPolicy(nn.Module):
