@@ -89,7 +89,14 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
 
         self.action_space = spaces.Tuple((
             spaces.Discrete(self.stage_num),
-            spaces.Box(low=np.array([10.]) * self.stage_num, high=np.array([30] * self.stage_num), dtype=np.float32)
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32),
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32),
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32),
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32),
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32),
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32),
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32),
+            spaces.Box(low=np.array([10.]), high=np.array([30]), dtype=np.float32)
         ))
 
         observation_low = np.array([0.] * self.stage_num)
@@ -129,9 +136,9 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
                              the first element is the stage next period, and the latter one is its duration
         :return: next_state, reward, done, info
         """
-
+        print(action)
         stage_next = action[0]
-        stage_duration = action[1][stage_next]
+        stage_duration = action[stage_next + 1]
 
         # SmartWolfie is a traffic signal control program defined in FW_Inter.add.xml.
         # We achieve hybrid action space control through switch its stage and steps

@@ -11,7 +11,7 @@ from torch.autograd import Variable
 from agents.baseagent import BaseAgent
 from agents.memory.memory import Memory
 from agents.model import Critic, Actor
-from agents.utils import soft_update_target_network, hard_update_target_network
+from agents.utils.utilities import *
 from agents.utils.noise import OrnsteinUhlenbeckActionNoise
 
 
@@ -36,7 +36,6 @@ class P_DQN(BaseAgent):
         self.action_max = torch.from_numpy(np.ones((self.num_actions,))).float().to(self.device)
         self.action_min = -self.action_max.detach()
         self.action_range = (self.action_max - self.action_min).detach()
-        print([self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)])
         self.action_parameter_max_numpy = np.concatenate(
             [self.action_space.spaces[i].high for i in range(1, self.num_actions + 1)]).ravel()
         self.action_parameter_min_numpy = np.concatenate(
@@ -61,8 +60,6 @@ class P_DQN(BaseAgent):
 
         self.batch_size = config.hyperparameters['batch_size']
         self.gamma = config.hyperparameters['gamma']
-        self.replay_memory_size = config.hyperparameters['replay_memory_size']
-        self.initial_memory_threshold = config.hyperparameters['initial_memory_threshold']
         self.lr_critic = config.hyperparameters['lr_critic']
         self.lr_actor = config.hyperparameters['lr_actor']
         self.inverting_gradients = config.others['inverting_gradients']
@@ -79,21 +76,18 @@ class P_DQN(BaseAgent):
         self.use_ornstein_noise = config.use_ornstein_noise
         self.noise = OrnsteinUhlenbeckActionNoise(self.action_parameter_size, random_machine=self.local_rnd, mu=0.,
                                                   theta=0.15, sigma=0.0001)  # , theta=0.01, sigma=0.01)
-
-        self.replay_memory = Memory(self.replay_memory_size, self.observation_space.shape,
-                                    (1 + self.action_parameter_size, ), next_actions=False)
         self.critic = Critic(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
                              self.critic_hidden_layers, self.init_std).to(self.device)
         self.critic_target = Critic(self.observation_space.shape[0], self.num_actions, self.action_parameter_size,
                                     self.critic_hidden_layers, self.init_std).to(self.device)
-        hard_update_target_network(self.critic, self.critic_target)
+        hard_update(self.critic_target, self.critic)
         self.critic_target.eval()
 
         self.actor = Actor(self.observation_space.shape[0], self.action_parameter_size, self.actor_hidden_layers,
                            self.init_std).to(self.device)
         self.actor_target = Actor(self.observation_space.shape[0], self.action_parameter_size, self.actor_hidden_layers,
                                   self.init_std).to(self.device)
-        hard_update_target_network(self.actor, self.actor_target)
+        hard_update(self.actor_target, self.actor)
         self.actor_target.eval()
 
         self.loss_func = config.hyperparameters['loss_func']  # l1_smooth_loss performs better but original paper used MSE
@@ -116,7 +110,6 @@ class P_DQN(BaseAgent):
                 "Inverting Gradients: {}\n".format(self.inverting_gradients) + \
                 "Replay Memory: {}\n".format(self.replay_memory_size) + \
                 "Batch Size: {}\n".format(self.batch_size) + \
-                "Initial memory: {}\n".format(self.initial_memory_threshold) + \
                 "epsilon_initial: {}\n".format(self.epsilon_initial) + \
                 "epsilon_final: {}\n".format(self.epsilon_final) + \
                 "Clip Grad: {}\n".format(self.clip_grad) + \
@@ -139,7 +132,7 @@ class P_DQN(BaseAgent):
         passthrough_layer.requires_grad = False
         passthrough_layer.weight.requires_grad = False
         passthrough_layer.bias.requires_grad = False
-        hard_update_target_network(self.actor, self.actor_target)
+        hard_update(self.actor_target, self.actor)
 
     def _ornstein_uhlenbeck_noise(self, all_action_parameters):
         """ Continuous action exploration using an Ornstein–Uhlenbeck process. """
@@ -309,8 +302,8 @@ class P_DQN(BaseAgent):
 
         self.actor_optim.step()
 
-        soft_update_target_network(self.critic, self.critic_target, self.tau_critic)
-        soft_update_target_network(self.actor, self.actor_target, self.tau_actor)
+        soft_update(self.critic_target, self.critic, self.tau_critic)
+        soft_update(self.actor_target, self.actor, self.tau_actor)
 
     def save_models(self, critic_path, actor_path):
         torch.save(self.critic.state_dict(), critic_path)

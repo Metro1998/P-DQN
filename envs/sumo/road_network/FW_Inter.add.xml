@@ -1,0 +1,72 @@
+<additional>
+  <tlLogic id="SmartWolfie" type="static" programID="SmartWolfie_V0" offset="0">
+        # phase0 north_south_through
+        <phase  duration="1000" state="GGGGGGrrrGGGrrrrrrGGGGGGrrrGGGrrrrrr"/>
+        # phase1 east_west_through
+        <phase  duration="1000" state="GGGrrrrrrGGGGGGrrrGGGrrrrrrGGGGGGrrr"/>
+        # phase2 north_south_left
+        <phase  duration="1000" state="GGGrrrGGGGGGrrrrrrGGGrrrGGGGGGrrrrrr"/>
+        # phase3 east_west_left
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrGGGGGGrrrrrrGGGrrrGGG"/>
+        # phase4 north_through_left
+        <phase  duration="1000" state="GGGGGGGGGGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        # phase5 east_through_left
+        <phase  duration="1000" state="GGGrrrrrrGGGGGGGGGGGGrrrrrrGGGrrrrrr"/>
+        # phase6 south_through_left
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGGGGGGGGGGrrrrrr"/>
+        # phase7 west_through_left
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGGGGGGG"/>
+
+        # all yellow phase respectively
+        # phase8 north_south_through
+        <phase  duration="1000" state="GGGyyyrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
+        # phase9 east_west_through
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGyyyrrr"/>
+        # phase10 north_south_left
+        <phase  duration="1000" state="GGGrrryyyGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
+        # phase11 east_west_left
+        <phase  duration="1000" state="GGGrrrrrrGGGrrryyyGGGrrrrrrGGGrrryyy"/>
+        # phase12 north_through_left
+        <phase  duration="1000" state="GGGyyyyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        # phase13 east_through_left
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyyyyGGGrrrrrrGGGrrrrrr"/>
+        # phase14 south_through_left
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGyyyyyyGGGrrrrrr"/>
+        # phase15 west_through_left
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGyyyyyy"/>
+
+        # phase16
+        <phase  duration="1000" state="GGGGGGrrrGGGrrrrrrGGGyyyrrrGGGrrrrrr"/>
+        # phase17
+        <phase  duration="1000" state="GGGyyyrrrGGGrrrrrrGGGGGGrrrGGGrrrrrr"/>
+        # phase18
+        <phase  duration="1000" state="GGGrrrrrrGGGGGGrrrGGGrrrrrrGGGyyyrrr"/>
+        # phase19
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyrrrGGGrrrrrrGGGGGGrrr"/>
+        # phase20
+        <phase  duration="1000" state="GGGrrrGGGGGGrrrrrrGGGrrryyyGGGrrrrrr"/>
+        # phase21
+        <phase  duration="1000" state="GGGrrryyyGGGrrrrrrGGGrrrGGGGGGrrrrrr"/>
+        # phase22
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrGGGGGGrrrGGGGGGrrryyy"/>
+        # phase23
+        <phase  duration="1000" state="GGGrrrrrrGGGrrryyyGGGrrrGGGGGGrrrGGG"/>
+        # phase24
+        <phase  duration="1000" state="GGGGGGyyyGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        # phase25
+        <phase  duration="1000" state="GGGyyyGGGGGGrrrrrrGGGrrrrrrGGGrrrrrr"/>
+        # phase26
+        <phase  duration="1000" state="GGGrrrrrrGGGGGGyyyGGGrrrrrrGGGrrrrrr"/>
+        # phase27
+        <phase  duration="1000" state="GGGrrrrrrGGGyyyGGGGGGrrrrrrGGGrrrrrr"/>
+        # phase28
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGGGGyyyGGGrrrrrr"/>
+        # phase29
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGyyyGGGGGGrrrrrr"/>
+        # phase30
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGGGGyyy"/>
+        # phase31
+        <phase  duration="1000" state="GGGrrrrrrGGGrrrrrrGGGrrrrrrGGGyyyGGG"/>
+
+  </tlLogic>
+</additional>

@@ -85,9 +85,9 @@ class Train_and_Evaluate(object):
                 while not done:
                     if len(self.memory) > self.batch_size:
                         action, action_param, action_params = self.agent.act(state)
-                        action_params = np.ceil(action_params).squeeze(0)
+                        action_params = np.ceil(action_params).squeeze(0).astype(np.int64)
 
-                        action_env = np.concatenate((action, action_params), axis=1)
+                        action_env = np.concatenate((np.array([action]), action_params), 0)
 
                         for i in range(self.updates_per_step):
                             self.agent.optimize_td_loss(self.memory)
@@ -95,7 +95,7 @@ class Train_and_Evaluate(object):
                     else:
                         action_params = np.random.randint(low=10, high=31, size=8)
                         action = np.random.randint(7, size=1)[0]
-                        action_env = [action, action_params[action]]
+                        action_env = np.concatenate((np.array([action]), action_params), 0)
 
                     next_state, reward, done, info = self.env.step(action_env)
 
