@@ -5,10 +5,10 @@
 import random
 
 
-def generate_routefile(seed, demand: list):
+def generate_routefile(seed, demand: list, simulation_step):
     """
     Generate XXX.rou.xml which will generate route in sumo respectively.
-
+    :param simulation_step:
     :param demand: The generation possibility for each route(represented in veh/s)
                    [ES, EW, NE, NS, WN, WE, SW, SN, EN, NW, WS, SE]
                    e.g.
@@ -16,9 +16,6 @@ def generate_routefile(seed, demand: list):
                                               ...
                     [1.13/, 1./14, 1./19, 1./5, 1./8, 1./15, 1./15, 1./19]]
                    len(demand) is chosen by yourself which decides the granularity of traffic situation.
-
-
-
     :param seed:
     :return:
     """
@@ -26,7 +23,7 @@ def generate_routefile(seed, demand: list):
     assert isinstance(demand[0], list), 'Wrong data structure, a list of lists is required.'
 
     random.seed(seed)
-    N = 1800  # number of time steps for one simulation
+    N = simulation_step  # number of time steps for one simulation
     assert N % len(demand) == 0, 'N should be divisible by len(demand).'
 
     with open('envs/sumo/road_network/FW_Inter.rou.xml', "w") as routes:
@@ -39,7 +36,6 @@ def generate_routefile(seed, demand: list):
            color="128, 128, 128"/>
     <vType id="WN_left" accel="3.0" decel="4.5" sigma="0.5" length="5" vClass="private" speedFactor="norm(0.9, 0.15)"
            color="128, 128, 128"/>
-
     <vType id="NS_through" accel="3.0" decel="4.5" sigma="0.5" length="5" vClass="custom1" speedFactor="norm(0.9, 0.15)"
            color="255, 255, 0"/>
     <vType id="EW_through" accel="3.0" decel="4.5" sigma="0.5" length="5" vClass="custom1" speedFactor="norm(0.9, 0.15)"
@@ -48,7 +44,6 @@ def generate_routefile(seed, demand: list):
            color="255, 255, 0"/>
     <vType id="WE_through" accel="3.0" decel="4.5" sigma="0.5" length="5" vClass="custom1" speedFactor="norm(0.9, 0.15)"
            color="255, 255, 0"/>
-
     <vType id="NW_right" accel="3.0" decel="4.5" sigma="0.5" length="5" vClass="custom2" speedFactor="norm(0.9, 0.15)"
            color="128, 255, 255"/>
     <vType id="EN_right" accel="3.0" decel="4.5" sigma="0.5" length="5" vClass="custom2" speedFactor="norm(0.9, 0.15)"
@@ -57,7 +52,6 @@ def generate_routefile(seed, demand: list):
            color="128, 255, 255"/>
     <vType id="WS_right" accel="3.0" decel="4.5" sigma="0.5" length="5" vClass="custom2" speedFactor="norm(0.9, 0.15)"
            color="128, 255, 255"/>
-
     <route id="EN" edges="east_in north_out" />
     <route id="EW" edges="east_in west_out" />
     <route id="ES" edges="east_in south_out" />
@@ -126,14 +120,4 @@ def generate_routefile(seed, demand: list):
                         vehicle_Nr, j + int(N / len(demand)) * i), file=routes)
                     vehicle_Nr += 1
         print("</routes>", file=routes)
-
-
-
-
-
-
-
-
-
-
 

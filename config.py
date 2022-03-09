@@ -27,23 +27,12 @@ class Config(object):
         self.agent_name = 'P-DQN'
         self.demand = None
         self.ceil = True
-        self.env_parameters = {
-            'cells': 32,
-            'lane_length_high': 240.,
-            'speed_high': 100.,
-            'edge_ids': ['north_in', 'east_in', 'south_in', 'west_in'],
-            'vehicles_types': ['NW_right', 'NS_through', 'NE_left',
-                               'EN_right', 'EW_through', 'ES_left',
-                               'SE_right', 'SN_through', 'SW_left',
-                               'WS_right', 'WE_through', 'WN_left'],
-            'yellow': 3,
-            'simulation_steps': 3600,
-            'n_steps': 5,
-            'alpha': 0.2,  # TODO
-        }
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # the simulation_step in Env() is fixed (1800 in default), and this term makes sense in route_generator.
+        # when you update simulation_step don't forget that in Env()
+        self.simulation_step = 1800
 
         self.hyperparameters = {
-            'device': 'cuda' if torch.cuda.is_available() else 'cpu',
             'epsilon_initial': 0.3,
             'epsilon_final': 0.01,
             'epsilon_decay': 5000,
@@ -61,6 +50,14 @@ class Config(object):
             'updates_per_step': 2,
             'maximum_episodes': 2000,
             'alpha': 0.2,
+        }
+
+        self.others = {
+            'indexed': True,
+            'weighted': True,
+            'average': True,
+            'random_weighted': True,
+            'inverting_gradients': True,
         }
 
         self.agent_to_color_dictionary = {

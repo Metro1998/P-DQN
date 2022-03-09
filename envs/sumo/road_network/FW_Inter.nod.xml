@@ -1,8 +1,0 @@
-<nodes>
-    <node id="east_input" x="255.88" y="0"/>
-    <node id="west_input" x="-255.88" y="0"/>
-    <node id="south_input" x="0" y="-255.88"/>
-    <node id="north_input" x="0" y="255.88"/>
-    <node id="SmartWolfie" x="0" y="0" type="traffic_light"/>
-
-</nodes>

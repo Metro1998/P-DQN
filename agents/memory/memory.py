@@ -1,9 +1,7 @@
 """
 Source: https://github.com/openai/baselines/blob/master/baselines/ddpg/ddpg.py
-        https://github.com/cycraig/MP-DQN/blob/master/agents/memory/memory.py
 """
 import numpy as np
-import random
 
 
 class RingBuffer(object):
@@ -61,8 +59,15 @@ class Memory(object):
         self.terminals = RingBuffer(limit, shape=(1,))
 
     def sample(self, batch_size, random_machine=np.random):
-        batch_idxs = random_machine.random_integers(low=0, high=self.nb_entries - 1, size=batch_size)
+        # Draw such that we always have a proceeding element.
+        # batch_idxs = random_machine.random_integers(self.nb_entries - 2, size=batch_size)
+        batch_idxs = random_machine.random_integers(low=0, high=self.nb_entries-1, size=batch_size)
 
+        '''states_batch = array_min2d(self.states.get_batch(batch_idxs))
+        actions_batch = array_min2d(self.actions.get_batch(batch_idxs))
+        rewards_batch = array_min2d(self.rewards.get_batch(batch_idxs))
+        next_states_batch = array_min2d(self.next_states.get_batch(batch_idxs))
+        terminals_batch = array_min2d(self.terminals.get_batch(batch_idxs))'''
         states_batch = self.states.get_batch(batch_idxs)
         actions_batch = self.actions.get_batch(batch_idxs)
         rewards_batch = self.rewards.get_batch(batch_idxs)
@@ -114,10 +119,9 @@ class MemoryV2(object):
 
     def sample(self, batch_size, random_machine=np.random):
         # Draw such that we always have a proceeding element.
-        # batch_idxs = random_machine.random_integers(self.nb_entries - 2, size=batch_size)
+        #batch_idxs = random_machine.random_integers(self.nb_entries - 2, size=batch_size)
         batch_idxs = random_machine.choice(self.nb_entries, size=batch_size)
-        # batch_idxs = random_machine.choice(self.nb_entries, weights=[i/self.nb_entries for i in range(
-        # self.nb_entries)], size=batch_size)
+        # batch_idxs = random_machine.choice(self.nb_entries, weights=[i/self.nb_entries for i in range(self.nb_entries)], size=batch_size)
 
         '''states_batch = array_min2d(self.states.get_batch(batch_idxs))
         actions_batch = array_min2d(self.actions.get_batch(batch_idxs))
@@ -157,8 +161,7 @@ class MemoryV2(object):
 
 
 class MemoryNStepReturns(object):
-    def __init__(self, limit, observation_shape, action_shape, next_actions=False, time_steps=False,
-                 n_step_returns=False):
+    def __init__(self, limit, observation_shape, action_shape, next_actions=False, time_steps=False, n_step_returns=False):
         self.limit = limit
 
         self.states = RingBuffer(limit, shape=observation_shape)
@@ -172,10 +175,9 @@ class MemoryNStepReturns(object):
 
     def sample(self, batch_size, random_machine=np.random):
         # Draw such that we always have a proceeding element.
-        # batch_idxs = random_machine.random_integers(self.nb_entries - 2, size=batch_size)
+        #batch_idxs = random_machine.random_integers(self.nb_entries - 2, size=batch_size)
         batch_idxs = random_machine.choice(self.nb_entries, size=batch_size)
-        # batch_idxs = random_machine.choice(self.nb_entries, weights=[i/self.nb_entries for i in range(
-        # self.nb_entries)], size=batch_size)
+        # batch_idxs = random_machine.choice(self.nb_entries, weights=[i/self.nb_entries for i in range(self.nb_entries)], size=batch_size)
 
         '''states_batch = array_min2d(self.states.get_batch(batch_idxs))
         actions_batch = array_min2d(self.actions.get_batch(batch_idxs))
@@ -220,24 +222,3 @@ class MemoryNStepReturns(object):
     @property
     def nb_entries(self):
         return len(self.states)
-
-
-class ReplayBuffer:
-    def __init__(self, capacity=1e5):
-        self.capacity = capacity
-        self.buffer = []
-        self.position = 0
-
-    def sample(self, batch_size):
-        batch = random.sample(self.buffer, batch_size)
-        state, action, action_param, reward, next_state, done = map(np.stack, zip(*batch))
-        return state, action, action_param, reward, next_state, done
-
-    def push(self, state, action, action_param, reward, next_state, done):
-        if len(self.buffer) < self.capacity:
-            self.buffer.append(None)
-        self.buffer[self.position] = (state, action, action_param, reward, next_state, done)
-        self.position = int((self.position + 1) % self.capacity)
-
-    def __len__(self):
-        return len(self.buffer)

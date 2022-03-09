@@ -4,16 +4,15 @@ import os.path
 
 import gym
 from agents.pdqn import P_DQN
-from utilities.memory import ReplayBuffer
 from utilities.utilities import *
-from utilities.route_generator import generate_routefile
+from agents.utils.route_generator import generate_routefile
 
 
 class Train_and_Evaluate(object):
 
     def __init__(self, config):
         # Environment
-        generate_routefile(seed=config.seed, demand=config.demand)
+        generate_routefile(seed=config.seed, demand=config.demand, simulation_step=config.simulation_step)
         self.env = gym.make(config.environment)
 
         # Agent

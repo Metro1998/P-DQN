@@ -1,42 +1,27 @@
-# @author Metro
-# @time 2021/10/29
-
 import os
 import random
 import numpy as np
 import torch
-import gym
-from torch.nn.utils import clip_grad_norm_
 
 
-class Base_Agent(object):
+class Agent(object):
     """
-    Define a basic reinforcement learning agent
+    Defines a basic reinforcement learning agent for OpenAI Gym environments
     """
 
     NAME = "Abstract Agent"
 
-    def __init__(self, config):
-        self.config = config
-        self.seed = config.seed
-        self.set_random_seeds(self.seed)
-        self.num_episodes_to_run = config.num_episodes_to_run
-        self.environment = gym.make(config.environment)
-        self.env_parameters = config.env_parameters
-        self.hyperparameters = config.hyperparameters
-        self.use_GPU = config.use_GPU
-        self.device = torch.device(self.hyperparameters['device'])
+    def __init__(self, env, config):
+        super().__init__()
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
+        self.set_random_seeds(config.seed)
+        self.device = torch.device(config.device)
 
-        self.file_to_save = config.file_to_save
-        self.runs_per_agent = config.runs_per_agent
-        self.standard_deviation_results = config.standard_deviation_results
-        self.randomise_random_seed = config.randomise_random_seed
-        self.clip_grad_norm = 4.0
 
     def set_random_seeds(self, random_seed):
         """
         Sets all possible random seeds to results can be reproduces.
-
         :param random_seed:
         :return:
         """
@@ -50,11 +35,24 @@ class Base_Agent(object):
             torch.cuda.manual_seed_all(random_seed)
             torch.cuda.manual_seed(random_seed)
 
-    def pick_action(self, state):
+    def act(self, state):
         """
-        Determines which action to take when given state
-
+        Determines the action to take in the given state.
         :param state:
+        :return:
+        """
+        raise NotImplementedError
+
+    def step(self, state, action, reward, next_state, next_action, terminal, time_steps=1):
+        """
+        Performs a learning step given a (s,a,r,s',a') sample.
+        :param state: previous observed state (s)
+        :param action: action taken in previous state (a)
+        :param reward: reward for the transition (r)
+        :param next_state: the resulting observed state (s')
+        :param next_action: action taken in next state (a')
+        :param terminal: whether the episode is over
+        :param time_steps: number of time steps the action took to execute (default=1)
         :return:
         """
         raise NotImplementedError
