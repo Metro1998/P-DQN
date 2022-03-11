@@ -76,6 +76,6 @@ class Actor(nn.Module):
         for i in range(0, num_hidden_layers):
             x = F.relu(self.layers[i](x))
         action_params = self.action_parameters_output_layer(x)
-        action_params += self.action_parameters_passthrough_layer(state)  # TODO
+        # action_params += self.action_parameters_passthrough_layer(state)  # TODO
 
         return action_params

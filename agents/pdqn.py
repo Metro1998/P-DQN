@@ -50,10 +50,6 @@ class P_DQN(BaseAgent):
         self.epsilon_final = config.hyperparameters['epsilon_final']
         self.epsilon_decay = config.hyperparameters['epsilon_decay']
         self.indexed = config.others['indexed']
-        self.weighted = config.others['weighted']
-        self.average = config.others['average']
-        self.random_weighted = config.others['random_weighted']
-        assert (self.weighted ^ self.average ^ self.random_weighted) or not (self.weighted or self.average or self.random_weighted)
 
         self.action_parameter_offsets = self.action_parameter_sizes.cumsum()
         self.action_parameter_offsets = np.insert(self.action_parameter_offsets, 0, 0)
@@ -66,12 +62,11 @@ class P_DQN(BaseAgent):
         self.tau_critic = config.hyperparameters['tau_critic']
         self.tau_actor = config.hyperparameters['tau_actor']
         self.clip_grad = config.hyperparameters['clip_grad']
-        self.zero_index_gradients = config.others['zero_index_gradients']
         self.critic_hidden_layers = config.hyperparameters['critic_hidden_layers']
         self.actor_hidden_layers = config.hyperparameters['actor_hidden_layers']
         self.init_std = config.hyperparameters['init_std']
 
-        self._episode = 0
+        self.counts = 0
 
         self.use_ornstein_noise = config.use_ornstein_noise
         self.noise = OrnsteinUhlenbeckActionNoise(self.action_parameter_size, random_machine=self.local_rnd, mu=0.,
@@ -90,13 +85,15 @@ class P_DQN(BaseAgent):
         hard_update(self.actor_target, self.actor)
         self.actor_target.eval()
 
-        self.loss_func = config.hyperparameters['loss_func']  # l1_smooth_loss performs better but original paper used MSE
+        self.loss_func = config.hyperparameters[
+            'loss_func']  # l1_smooth_loss performs better but original paper used MSE
 
         # Original DDPG paper [Lillicrap et al. 2016] used a weight decay of 0.01 for Q (critic)
         # but setting weight_decay=0.01 on the critic_optimiser seems to perform worse...
         # using AMSgrad ("fixed" version of Adam, amsgrad=True) doesn't seem to help either...
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.lr_critic)  # , betas=(0.95, 0.999))
-        self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.lr_actor)  # , betas=(0.95, 0.999)) #, weight_decay=critic_l2_reg)
+        self.actor_optim = optim.Adam(self.actor.parameters(),
+                                      lr=self.lr_actor)  # , betas=(0.95, 0.999)) #, weight_decay=critic_l2_reg)
 
     def __str__(self):
         desc = super().__str__() + "\n"
@@ -108,31 +105,13 @@ class P_DQN(BaseAgent):
                 "Tau (actor): {}\n".format(self.tau_critic) + \
                 "Tau (actor-params): {}\n".format(self.tau_actor) + \
                 "Inverting Gradients: {}\n".format(self.inverting_gradients) + \
-                "Replay Memory: {}\n".format(self.replay_memory_size) + \
                 "Batch Size: {}\n".format(self.batch_size) + \
                 "epsilon_initial: {}\n".format(self.epsilon_initial) + \
                 "epsilon_final: {}\n".format(self.epsilon_final) + \
                 "Clip Grad: {}\n".format(self.clip_grad) + \
                 "Ornstein Noise?: {}\n".format(self.use_ornstein_noise) + \
-                "Zero Index Grads?: {}\n".format(self.zero_index_gradients) + \
                 "Seed: {}\n".format(self.seed)
         return desc
-
-    def set_action_parameter_passthrough_weights(self, initial_weights, initial_bias=None):
-        passthrough_layer = self.actor.action_parameters_passthrough_layer
-        print(initial_weights.shape)
-        print(passthrough_layer.weight.data.size())
-        assert initial_weights.shape == passthrough_layer.weight.data.size()
-        passthrough_layer.weight.data = torch.Tensor(initial_weights).float().to(self.device)
-        if initial_bias is not None:
-            print(initial_bias.shape)
-            print(passthrough_layer.bias.data.size())
-            assert initial_bias.shape == passthrough_layer.bias.data.size()
-            passthrough_layer.bias.data = torch.Tensor(initial_bias).float().to(self.device)
-        passthrough_layer.requires_grad = False
-        passthrough_layer.weight.requires_grad = False
-        passthrough_layer.bias.requires_grad = False
-        hard_update(self.actor_target, self.actor)
 
     def _ornstein_uhlenbeck_noise(self, all_action_parameters):
         """ Continuous action exploration using an Ornstein–Uhlenbeck process. """
@@ -142,13 +121,12 @@ class P_DQN(BaseAgent):
         pass
 
     def end_episode(self):
-        self.epsilon = self.epsilon_final + (self.epsilon_initial - self.epsilon_final) * math.exp(
-            -1. * self._episode / self.epsilon_decay)
-        self._episode += 1
+        pass
 
     def act(self, state):
+        self.epsilon_step()
         with torch.no_grad():
-            state = torch.from_numpy(state).to(self.device)
+            state = torch.FloatTensor(state).to(self.device)
             all_action_parameters = self.actor.forward(state)
 
             # Hausknecht and Stone [2016] use epsilon greedy actions with uniform random action-parameter exploration
@@ -161,6 +139,7 @@ class P_DQN(BaseAgent):
             else:
                 # select maximum action
                 Q_a = self.critic.forward(state.unsqueeze(0), all_action_parameters.unsqueeze(0))
+                print(Q_a)
                 Q_a = Q_a.detach().cpu().data.numpy()
                 action = np.argmax(Q_a)
 
@@ -170,25 +149,9 @@ class P_DQN(BaseAgent):
             if self.use_ornstein_noise and self.noise is not None:
                 all_action_parameters[offset:offset + self.action_parameter_sizes[action]] += \
                     self.noise.sample()[offset:offset + self.action_parameter_sizes[action]]
-            action_parameters = all_action_parameters[offset:offset + self.action_parameter_sizes[action]]
+            action_parameter = all_action_parameters[offset:offset + self.action_parameter_sizes[action]]
 
-        return action, action_parameters, all_action_parameters
-
-    def _zero_index_gradients(self, grad, batch_action_indices, inplace=True):
-        assert grad.shape[0] == batch_action_indices.shape[0]
-        grad = grad.cpu()
-
-        if not inplace:
-            grad = grad.clone()
-        with torch.no_grad():
-            ind = torch.zeros(self.action_parameter_size, dtype=torch.long)
-            for a in range(self.num_actions):
-                ind[self.action_parameter_offsets[a]:self.action_parameter_offsets[a + 1]] = a
-            # ind_tile = np.tile(ind, (self.batch_size, 1))
-            ind_tile = ind.repeat(self.batch_size, 1).to(self.device)
-            actual_index = ind_tile != batch_action_indices[:, np.newaxis]
-            grad[actual_index] = 0.
-        return grad
+        return action, action_parameter, all_action_parameters
 
     def _invert_gradients(self, grad, vals, grad_type, inplace=True):
         # 5x faster on CPU (for Soccer, slightly slower for Goal, Platform?)
@@ -222,13 +185,9 @@ class P_DQN(BaseAgent):
         return grad
 
     def optimize_td_loss(self, memory):
-        if len(memory) < self.batch_size:
-            batch_size = len(memory)
-        else:
-            batch_size = self.batch_size
-
+        batch_size = min(len(memory), self.batch_size)
         state_batch, action_batch, action_params_batch, reward_batch, next_state_batch, done_batch = memory.sample(
-            batch_size, random_machine=self.local_rnd)
+            batch_size=batch_size)
 
         state_batch = torch.FloatTensor(state_batch).to(self.device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
@@ -241,19 +200,18 @@ class P_DQN(BaseAgent):
         with torch.no_grad():
             pred_next_action_parameters = self.actor_target.forward(next_state_batch)
             pred_Q_a = self.critic_target(next_state_batch, pred_next_action_parameters)
-            Qprime = torch.max(pred_Q_a, 1, keepdim=True)[0].squeeze()
+            Qprime = torch.max(pred_Q_a, 1, keepdim=True)[0]
 
             # Compute the TD error
             target = reward_batch + (1 - done_batch) * self.gamma * Qprime
 
         # Compute current Q-values using policy network
         q_values = self.critic(state_batch, action_params_batch)
-        y_predicted = q_values.gather(1, action_batch.view(-1, 1)).squeeze()
-        y_expected = target
-        loss_Q = self.loss_func(y_predicted, y_expected)
+        predict = q_values.gather(1, action_batch.view(-1, 1))
+        loss_critic = self.loss_func(predict, target)
 
         self.critic_optim.zero_grad()
-        loss_Q.backward()
+        loss_critic.backward()
         if self.clip_grad > 0:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.clip_grad)
         self.critic_optim.step()
@@ -262,37 +220,19 @@ class P_DQN(BaseAgent):
         with torch.no_grad():
             action_params = self.actor(state_batch)
         action_params.requires_grad = True
-        assert (self.weighted ^ self.average ^ self.random_weighted) or \
-               not (self.weighted or self.average or self.random_weighted)
-        Q = self.critic(state_batch, action_params)
-        Q_val = Q
-        if self.weighted:
-            # approximate categorical probability density (i.e. counting)
-            counts = Counter(action_batch.cpu().numpy())
-            weights = torch.from_numpy(
-                np.array([counts[a] / action_batch.shape[0] for a in range(self.num_actions)])).float().to(self.device)
-            Q_val = weights * Q
-        elif self.average:
-            Q_val = Q / self.num_actions
-        elif self.random_weighted:
-            weights = np.random.uniform(0, 1., self.num_actions)
-            weights /= np.linalg.norm(weights)
-            weights = torch.from_numpy(weights).float().to(self.device)
-            Q_val = weights * Q
+        Q_val = self.critic(state_batch, action_params)
         if self.indexed:
-            Q_indexed = Q_val.gather(1, action_batch.unsqueeze(1))
-            Q_loss = torch.mean(Q_indexed)
+            Q_indexed = Q_val.gather(1, action_batch)
+            loss_actor = torch.mean(Q_indexed)
         else:
-            Q_loss = torch.mean(torch.sum(Q_val, 1))
-        self.critic.zero_grad()
-        Q_loss.backward()
+            loss_actor = torch.mean(torch.sum(Q_val, 1))
+        self.critic.zero_grad()  # TODO
+        loss_actor.backward()
+
         from copy import deepcopy
         delta_a = deepcopy(action_params.grad.data)
-        # step 2
         action_params = self.actor(Variable(state_batch))
         delta_a[:] = self._invert_gradients(delta_a, action_params, grad_type="action_parameters", inplace=True)
-        if self.zero_index_gradients:
-            delta_a[:] = self._zero_index_gradients(delta_a, batch_action_indices=action_batch, inplace=True)
 
         out = -torch.mul(delta_a, action_params)
         self.actor.zero_grad()
@@ -316,3 +256,7 @@ class P_DQN(BaseAgent):
         self.actor.load_state_dict(torch.load(actor_path))
         print('Models loaded successfully')
 
+    def epsilon_step(self):
+        self.epsilon = self.epsilon_final + (self.epsilon_initial - self.epsilon_final) * math.exp(
+            -1. * self.counts / self.epsilon_decay)
+        self.counts += 1

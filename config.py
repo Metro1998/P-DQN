@@ -52,11 +52,7 @@ class Config(object):
 
         self.others = {
             'indexed': True,
-            'weighted': True,
-            'average': True,
-            'random_weighted': True,
             'inverting_gradients': True,
-            'zero_index_gradients': True,
         }
 
         self.agent_to_color_dictionary = {

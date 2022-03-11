@@ -100,7 +100,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         ))
 
         observation_low = np.array([0.] * self.stage_num)
-        observation_high = np.array([1.] * self.stage_num)
+        observation_high = np.array([100.] * self.stage_num)
         self.observation_space = spaces.Box(low=observation_low, high=observation_high, dtype=np.float32)
 
         seed = 1
@@ -125,7 +125,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         state = self.retrieve_state(raw)
         done = 0
 
-        self.action_pre = []
+        self.action_pre = None
         self.vehicle_pre = []
 
         return state, done
@@ -136,9 +136,8 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
                              the first element is the stage next period, and the latter one is its duration
         :return: next_state, reward, done, info
         """
-        print(action)
-        stage_next = action[0]
-        stage_duration = action[stage_next + 1]
+        stage_next = int(action[0])
+        stage_duration = int(np.ceil(action[1:])[stage_next])
 
         # SmartWolfie is a traffic signal control program defined in FW_Inter.add.xml.
         # We achieve hybrid action space control through switch its stage and steps
@@ -146,8 +145,8 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         # There is possibility that stage next period is same with the stage right now
         # Otherwise there is a yellow between two different stages.
 
-        if len(self.action_pre) and action[0] != self.action_pre[0]:
-            yellow = self.phase_transformer[self.action_pre[0]][action[0]]
+        if self.action_pre and action[0] != self.action_pre:
+            yellow = self.phase_transformer[self.action_pre][stage_next]
             traci.trafficlight.setPhase('SmartWolfie', yellow)
             for t in range(self.yellow):
                 traci.simulationStep()
@@ -174,7 +173,7 @@ class FreewheelingIntersectionEnv_v1(gym.Env):
         # info
         info = self.retrieve_more_info(raw)
 
-        self.action_pre = copy.deepcopy(action)
+        self.action_pre = copy.deepcopy(stage_next)
         self.vehicle_pre = copy.deepcopy(vehicle_now)
 
         return state, reward, done, info

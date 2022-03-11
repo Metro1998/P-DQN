@@ -80,21 +80,21 @@ class Train_and_Evaluate(object):
                 episode_score = []
                 episode_steps = 0
                 done = 0
-                state = self.env.reset()
+                state, _ = self.env.reset()
 
                 while not done:
                     if len(self.memory) > self.batch_size:
                         action, action_param, action_params = self.agent.act(state)
-                        action_params = np.ceil(action_params).squeeze(0).astype(np.int64)
-
                         action_env = np.concatenate((np.array([action]), action_params), 0)
+                        print(action_env)
 
                         for i in range(self.updates_per_step):
                             self.agent.optimize_td_loss(self.memory)
                             self.total_updates += 1
+
                     else:
-                        action_params = np.random.randint(low=10, high=31, size=8)
-                        action = np.random.randint(7, size=1)[0]
+                        action_params = np.random.normal(20, 2, size=8)
+                        action = np.random.randint(low=0, high=8, size=1).astype(float).squeeze()
                         action_env = np.concatenate((np.array([action]), action_params), 0)
 
                     next_state, reward, done, info = self.env.step(action_env)
@@ -112,7 +112,6 @@ class Train_and_Evaluate(object):
                     np.mean(episodes_score[-1 * self.rolling_score_window:]))
 
                 self.env.close()
-                self.agent.end_episode()
                 file_path_for_pic = os.path.join(file_to_save_runs, 'episode{}_run{}.jpg'.format(i_episode, run))
                 visualize_results_per_run(agent_results=episodes_score,
                                           agent_name=self.agent_name,

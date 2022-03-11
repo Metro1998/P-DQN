@@ -25,12 +25,12 @@ config.use_ornstein_noise = True
 config.simulation_step = 1800
 
 config.hyperparameters = {
-    'epsilon_initial': 0.3,
+    'epsilon_initial': 0.1,
     'epsilon_final': 0,
     'epsilon_decay': 3000,
     'replay_memory_size': 1e5,
     'batch_size': 256,
-    'gamma': 0.98,
+    'gamma': 0.95,
     'lr_critic': 1e-3,
     'lr_actor': 1e-4,
     'lr_alpha': 1e-2,
@@ -41,17 +41,13 @@ config.hyperparameters = {
     'updates_per_step': 1,
     'maximum_episodes': 400,
     'loss_func': F.smooth_l1_loss,
-    'clip_grad': 10,
-    'init_std': 0.1,
+    'clip_grad': 5,
+    'init_std': None,
 }
 
 config.others = {
     'indexed': True,
-    'weighted': True,
-    'average': True,
-    'random_weighted': True,
     'inverting_gradients': True,
-    'zero_index_gradients': True,
 }
 
 config.agent_to_color_dictionary = {

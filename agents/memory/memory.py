@@ -60,7 +60,7 @@ class Memory(object):
         self.next_actions = RingBuffer(limit, shape=action_shape) if next_actions else None
         self.terminals = RingBuffer(limit, shape=(1,))
 
-    def sample(self, batch_size, random_machine=np.random):
+    def sample(self, batch_size, random_machine):
         batch_idxs = random_machine.random_integers(low=0, high=self.nb_entries - 1, size=batch_size)
 
         states_batch = self.states.get_batch(batch_idxs)
@@ -230,8 +230,8 @@ class ReplayBuffer:
 
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
-        state, action, action_param, reward, next_state, done = map(np.stack, zip(*batch))
-        return state, action, action_param, reward, next_state, done
+        state, action, action_params, reward, next_state, done = map(np.stack, zip(*batch))
+        return state, action, action_params, reward, next_state, done
 
     def push(self, state, action, action_param, reward, next_state, done):
         if len(self.buffer) < self.capacity:
